@@ -21,6 +21,8 @@ interface GifFrame {
   transparentIndex: number;
 }
 
+const EXPORT_MAX_SIDE = 1280;
+
 const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -121,8 +123,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
   }, [imageSrc]);
 
   // Core Render Logic (Draws to canvasRef based on current composition)
-  const renderCurrentFrameToCanvas = useCallback(() => {
-     const finalCanvas = canvasRef.current;
+  const renderCurrentFrameToCanvas = useCallback((targetCanvas?: HTMLCanvasElement) => {
+     const finalCanvas = targetCanvas || canvasRef.current;
      if (!finalCanvas || !compositionCanvasRef.current) return null;
      
      const finalCtx = finalCanvas.getContext('2d', { alpha: false });
@@ -147,6 +149,19 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
      // Clear and Draw Text
      finalCtx.fillStyle = config.backgroundColor;
      finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+
+     if (config.overlayOpacity > 0) {
+         finalCtx.save();
+         finalCtx.globalAlpha = Math.min(1, Math.max(0, config.overlayOpacity));
+         finalCtx.drawImage(
+            compositionCanvasRef.current,
+            0,
+            0,
+            finalCanvas.width,
+            finalCanvas.height
+         );
+         finalCtx.restore();
+     }
      
      finalCtx.fillStyle = config.color;
      finalCtx.textBaseline = 'top';
@@ -285,6 +300,15 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
 
     try {
         const gif = new GIFEncoder();
+        const exportCanvas = document.createElement('canvas');
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const fallbackWidth = canvasRef.current ? Math.round(canvasRef.current.width / dpr) : 1;
+        const fallbackHeight = canvasRef.current ? Math.round(canvasRef.current.height / dpr) : 1;
+        const baseWidth = Math.max(1, containerRef.current?.clientWidth || fallbackWidth);
+        const baseHeight = Math.max(1, containerRef.current?.clientHeight || fallbackHeight);
+        const exportScale = Math.min(1, EXPORT_MAX_SIDE / Math.max(baseWidth, baseHeight));
+        exportCanvas.width = Math.max(1, Math.floor(baseWidth * exportScale));
+        exportCanvas.height = Math.max(1, Math.floor(baseHeight * exportScale));
         
         // Reset composition for export
         const compCanvas = compositionCanvasRef.current!;
@@ -306,7 +330,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
             }
 
             // 2. Render ASCII to Canvas
-            const renderResult = renderCurrentFrameToCanvas();
+            const renderResult = renderCurrentFrameToCanvas(exportCanvas);
             
             if (renderResult) {
                 const { finalCtx, finalCanvas } = renderResult;
@@ -490,12 +514,6 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
             }}
         >
             <canvas ref={canvasRef} className="w-full h-full block" />
-            <img 
-                src={imageSrc}
-                alt="overlay"
-                className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-100"
-                style={{ opacity: config.overlayOpacity }}
-            />
         </div>
 
         {/* Controls */}
