@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Settings, RefreshCcw, Github, Layers, Monitor } from 'lucide-react';
+import { Settings, RefreshCcw, Layers, Monitor } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
 import { AsciiConfig, AppState } from './types';
 import { DEFAULT_CHARS } from './services/asciiUtils';
+
+const logoUrl = new URL('./lofilogo.png', import.meta.url).href;
 
 const App: React.FC = () => {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
@@ -48,16 +50,16 @@ const App: React.FC = () => {
       <header className="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center font-mono font-bold text-lg">
-              A
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-800 shadow-sm bg-zinc-900">
+              <img
+                src={logoUrl}
+                alt="Gif2Ascii logo"
+                className="w-full h-full object-cover"
+              />
             </div>
             <h1 className="font-bold text-xl tracking-tight">Gif2Ascii</h1>
           </div>
-          <div className="flex items-center gap-4">
-             <a href="#" className="text-zinc-500 hover:text-zinc-300 transition-colors">
-               <Github size={20} />
-             </a>
-          </div>
+          <div className="flex items-center gap-4" />
         </div>
       </header>
 
