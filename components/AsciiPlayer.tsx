@@ -121,8 +121,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
   }, [imageSrc]);
 
   // Core Render Logic (Draws to canvasRef based on current composition)
-  const renderCurrentFrameToCanvas = useCallback(() => {
-     const finalCanvas = canvasRef.current;
+  const renderCurrentFrameToCanvas = useCallback((targetCanvas?: HTMLCanvasElement) => {
+     const finalCanvas = targetCanvas || canvasRef.current;
      if (!finalCanvas || !compositionCanvasRef.current) return null;
      
      const finalCtx = finalCanvas.getContext('2d', { alpha: false });
@@ -285,11 +285,14 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
 
     try {
         const gif = new GIFEncoder();
+        const exportCanvas = document.createElement('canvas');
         
         // Reset composition for export
         const compCanvas = compositionCanvasRef.current!;
         const compCtx = compositionCtxRef.current!;
         compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+        exportCanvas.width = compCanvas.width;
+        exportCanvas.height = compCanvas.height;
 
         // Iterate all frames
         for (let i = 0; i < frames.length; i++) {
@@ -306,7 +309,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
             }
 
             // 2. Render ASCII to Canvas
-            const renderResult = renderCurrentFrameToCanvas();
+            const renderResult = renderCurrentFrameToCanvas(exportCanvas);
             
             if (renderResult) {
                 const { finalCtx, finalCanvas } = renderResult;
