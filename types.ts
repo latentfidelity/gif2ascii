@@ -8,13 +8,6 @@ export interface AsciiConfig {
   overlayOpacity: number; // Opacity of the original image behind the ASCII (0-1)
 }
 
-export interface GeminiAnalysisResult {
-  caption: string;
-  moodColor: string;
-  recommendedChars: string;
-  theme: string;
-}
-
 export interface AsciiFrame {
   text: string;
 }
