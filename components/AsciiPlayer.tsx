@@ -4,11 +4,11 @@ import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { AsciiConfig } from '../types';
 import { resizeAndGetImageData, convertToAscii } from '../services/asciiUtils';
-import { EXPORT_CELL_WIDTH } from '../constants';
 
 interface AsciiPlayerProps {
   imageSrc: string;
   config: AsciiConfig;
+  outputWidth?: number;
   onFrame?: (base64Frame: string) => void;
 }
 
@@ -25,7 +25,7 @@ interface GifFrame {
 const VIDEO_EXPORT_SCALE = 2;
 const VIDEO_EXPORT_BITRATE = 8000000;
 
-const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) => {
+const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -299,8 +299,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
         const compCanvas = compositionCanvasRef.current!;
         const compCtx = compositionCtxRef.current!;
         compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
-        const exportColumns = Math.max(1, Math.floor(config.resolution));
-        const exportWidth = Math.max(1, Math.floor(exportColumns * EXPORT_CELL_WIDTH));
+        const exportWidth = Math.max(1, Math.floor(outputWidth || compCanvas.width));
         const exportHeight = Math.max(1, Math.round((compCanvas.height / compCanvas.width) * exportWidth));
         exportCanvas.width = exportWidth;
         exportCanvas.height = exportHeight;
@@ -410,8 +409,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
     try {
         const exportCanvas = document.createElement('canvas');
         const compCanvas = compositionCanvasRef.current!;
-        const exportColumns = Math.max(1, Math.floor(config.resolution));
-        const exportWidth = Math.max(1, Math.floor(exportColumns * EXPORT_CELL_WIDTH * VIDEO_EXPORT_SCALE));
+        const baseWidth = Math.max(1, Math.floor(outputWidth || compCanvas.width));
+        const exportWidth = Math.max(1, Math.floor(baseWidth * VIDEO_EXPORT_SCALE));
         const exportHeight = Math.max(1, Math.round((compCanvas.height / compCanvas.width) * exportWidth));
         exportCanvas.width = exportWidth;
         exportCanvas.height = exportHeight;

@@ -4,7 +4,6 @@ import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
 import { AsciiConfig, AppState } from './types';
 import { DEFAULT_CHARS } from './services/asciiUtils';
-import { EXPORT_CELL_WIDTH } from './constants';
 
 const logoUrl = new URL('./lofilogo.png', import.meta.url).href;
 
@@ -13,7 +12,7 @@ const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   
   // Configuration State
-  const [resolution, setResolution] = useState(60);
+  const [density, setDensity] = useState(60);
   const [chars, setChars] = useState(DEFAULT_CHARS);
   const [color, setColor] = useState('#22d3ee'); // Cyan default
   const [invert, setInvert] = useState(false);
@@ -21,21 +20,23 @@ const App: React.FC = () => {
   const [fontAspectRatio, setFontAspectRatio] = useState(0.55);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
   const [inputSize, setInputSize] = useState<{ width: number; height: number } | null>(null);
+  const [outputWidth, setOutputWidth] = useState(0);
 
-  const outputWidthPx = Math.max(1, Math.round(resolution * EXPORT_CELL_WIDTH));
-  const maxResolution = inputSize
-    ? Math.max(250, Math.round((inputSize.width / EXPORT_CELL_WIDTH) * 2))
-    : 250;
+  const outputWidthPx = outputWidth > 0 ? outputWidth : (inputSize?.width ?? 0);
+  const maxOutputWidth = inputSize
+    ? Math.max(320, inputSize.width * 2)
+    : 2000;
+  const maxDensity = 300;
 
   const config: AsciiConfig = useMemo(() => ({
-    resolution,
+    resolution: density,
     chars,
     color,
     backgroundColor: bgColor,
     invert,
     fontAspectRatio,
     overlayOpacity
-  }), [resolution, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity]);
+  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity]);
 
   const handleFileSelect = (file: File) => {
     const url = URL.createObjectURL(file);
@@ -50,7 +51,7 @@ const App: React.FC = () => {
       const height = img.naturalHeight || img.height;
       if (width > 0 && height > 0) {
         setInputSize({ width, height });
-        setResolution(Math.max(1, Math.round(width / EXPORT_CELL_WIDTH)));
+        setOutputWidth(width);
       }
     };
     img.src = url;
@@ -60,6 +61,7 @@ const App: React.FC = () => {
     setFileUrl(null);
     setAppState(AppState.IDLE);
     setInputSize(null);
+    setOutputWidth(0);
   };
 
   return (
@@ -93,19 +95,36 @@ const App: React.FC = () => {
               Render Settings
             </h3>
 
-            {/* Resolution Slider */}
+            {/* Density Slider */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs text-zinc-400">
-                <span>Resolution</span>
-                <span>{outputWidthPx}px ({resolution} cols)</span>
+                <span>Density</span>
+                <span>{density} cols</span>
               </div>
               <input 
                 type="range" 
-                min="1" 
-                max={maxResolution} 
-                value={resolution} 
-                onChange={(e) => setResolution(Number(e.target.value))}
+                min="10" 
+                max={maxDensity} 
+                value={density} 
+                onChange={(e) => setDensity(Number(e.target.value))}
                 className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+            </div>
+
+            {/* Output Width Slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-zinc-400">
+                <span>Output Width</span>
+                <span>{outputWidthPx > 0 ? `${outputWidthPx}px` : '--'}</span>
+              </div>
+              <input 
+                type="range" 
+                min="64" 
+                max={maxOutputWidth} 
+                value={outputWidthPx > 0 ? outputWidthPx : 64} 
+                onChange={(e) => setOutputWidth(Number(e.target.value))}
+                disabled={!inputSize}
+                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -219,7 +238,8 @@ const App: React.FC = () => {
               {fileUrl && (
                 <AsciiPlayer 
                   imageSrc={fileUrl} 
-                  config={config} 
+                  config={config}
+                  outputWidth={outputWidthPx}
                 />
               )}
             </div>
