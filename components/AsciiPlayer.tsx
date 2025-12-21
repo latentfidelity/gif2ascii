@@ -9,6 +9,7 @@ interface AsciiPlayerProps {
   imageSrc: string;
   config: AsciiConfig;
   outputWidth?: number;
+  outputHeight?: number;
   onFrame?: (base64Frame: string) => void;
 }
 
@@ -25,7 +26,7 @@ interface GifFrame {
 const VIDEO_EXPORT_SCALE = 2;
 const VIDEO_EXPORT_BITRATE = 8000000;
 
-const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, onFrame }) => {
+const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -299,8 +300,15 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         const compCanvas = compositionCanvasRef.current!;
         const compCtx = compositionCtxRef.current!;
         compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
-        const exportWidth = Math.max(1, Math.floor(outputWidth || compCanvas.width));
-        const exportHeight = Math.max(1, Math.round((compCanvas.height / compCanvas.width) * exportWidth));
+        const aspect = compCanvas.height / compCanvas.width;
+        const exportWidth = Math.max(
+            1,
+            Math.floor(outputWidth || ((outputHeight || compCanvas.height) / aspect))
+        );
+        const exportHeight = Math.max(
+            1,
+            Math.round(outputHeight || (exportWidth * aspect))
+        );
         exportCanvas.width = exportWidth;
         exportCanvas.height = exportHeight;
 
@@ -409,9 +417,17 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     try {
         const exportCanvas = document.createElement('canvas');
         const compCanvas = compositionCanvasRef.current!;
-        const baseWidth = Math.max(1, Math.floor(outputWidth || compCanvas.width));
+        const aspect = compCanvas.height / compCanvas.width;
+        const baseWidth = Math.max(
+            1,
+            Math.floor(outputWidth || ((outputHeight || compCanvas.height) / aspect))
+        );
+        const baseHeight = Math.max(
+            1,
+            Math.round(outputHeight || (baseWidth * aspect))
+        );
         const exportWidth = Math.max(1, Math.floor(baseWidth * VIDEO_EXPORT_SCALE));
-        const exportHeight = Math.max(1, Math.round((compCanvas.height / compCanvas.width) * exportWidth));
+        const exportHeight = Math.max(1, Math.floor(baseHeight * VIDEO_EXPORT_SCALE));
         exportCanvas.width = exportWidth;
         exportCanvas.height = exportHeight;
         videoExportCanvasRef.current = exportCanvas;

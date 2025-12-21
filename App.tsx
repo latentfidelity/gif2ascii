@@ -6,6 +6,7 @@ import { AsciiConfig, AppState } from './types';
 import { DEFAULT_CHARS } from './services/asciiUtils';
 
 const logoUrl = new URL('./lofilogo.png', import.meta.url).href;
+const DEFAULT_DENSITY_CELL_WIDTH = 5;
 
 const App: React.FC = () => {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
@@ -21,12 +22,21 @@ const App: React.FC = () => {
   const [overlayOpacity, setOverlayOpacity] = useState(0);
   const [inputSize, setInputSize] = useState<{ width: number; height: number } | null>(null);
   const [outputWidth, setOutputWidth] = useState(0);
+  const [outputHeight, setOutputHeight] = useState(0);
+  const [lockOutputAspect, setLockOutputAspect] = useState(true);
 
+  const inputAspect = inputSize ? (inputSize.height / inputSize.width) : 1;
   const outputWidthPx = outputWidth > 0 ? outputWidth : (inputSize?.width ?? 0);
+  const outputHeightPx = outputHeight > 0 ? outputHeight : (inputSize?.height ?? 0);
   const maxOutputWidth = inputSize
     ? Math.max(320, inputSize.width * 2)
     : 2000;
-  const maxDensity = 300;
+  const maxOutputHeight = inputSize
+    ? Math.max(320, inputSize.height * 2)
+    : 2000;
+  const maxDensity = inputSize
+    ? Math.max(300, Math.round(inputSize.width / 2))
+    : 300;
 
   const config: AsciiConfig = useMemo(() => ({
     resolution: density,
@@ -37,6 +47,20 @@ const App: React.FC = () => {
     fontAspectRatio,
     overlayOpacity
   }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity]);
+
+  const handleOutputWidthChange = (value: number) => {
+    setOutputWidth(value);
+    if (lockOutputAspect && inputSize) {
+      setOutputHeight(Math.max(1, Math.round(value * inputAspect)));
+    }
+  };
+
+  const handleOutputHeightChange = (value: number) => {
+    setOutputHeight(value);
+    if (lockOutputAspect && inputSize) {
+      setOutputWidth(Math.max(1, Math.round(value / inputAspect)));
+    }
+  };
 
   const handleFileSelect = (file: File) => {
     const url = URL.createObjectURL(file);
@@ -52,6 +76,8 @@ const App: React.FC = () => {
       if (width > 0 && height > 0) {
         setInputSize({ width, height });
         setOutputWidth(width);
+        setOutputHeight(height);
+        setDensity(Math.max(10, Math.round(width / DEFAULT_DENSITY_CELL_WIDTH)));
       }
     };
     img.src = url;
@@ -62,6 +88,7 @@ const App: React.FC = () => {
     setAppState(AppState.IDLE);
     setInputSize(null);
     setOutputWidth(0);
+    setOutputHeight(0);
   };
 
   return (
@@ -122,10 +149,44 @@ const App: React.FC = () => {
                 min="64" 
                 max={maxOutputWidth} 
                 value={outputWidthPx > 0 ? outputWidthPx : 64} 
-                onChange={(e) => setOutputWidth(Number(e.target.value))}
+                onChange={(e) => handleOutputWidthChange(Number(e.target.value))}
                 disabled={!inputSize}
                 className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
               />
+            </div>
+
+            {/* Output Height Slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs text-zinc-400">
+                <span>Output Height</span>
+                <span>{outputHeightPx > 0 ? `${outputHeightPx}px` : '--'}</span>
+              </div>
+              <input 
+                type="range" 
+                min="64" 
+                max={maxOutputHeight} 
+                value={outputHeightPx > 0 ? outputHeightPx : 64} 
+                onChange={(e) => handleOutputHeightChange(Number(e.target.value))}
+                disabled={!inputSize}
+                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+            </div>
+
+            {/* Lock Aspect */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-300">Lock Output Aspect</span>
+              <button 
+                onClick={() => {
+                  const next = !lockOutputAspect;
+                  setLockOutputAspect(next);
+                  if (next && inputSize && outputWidthPx > 0) {
+                    setOutputHeight(Math.max(1, Math.round(outputWidthPx * inputAspect)));
+                  }
+                }}
+                className={`w-12 h-6 rounded-full transition-colors relative ${lockOutputAspect ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+              >
+                <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${lockOutputAspect ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
             </div>
 
             {/* Font Aspect Ratio Slider (Calibration) */}
@@ -240,6 +301,7 @@ const App: React.FC = () => {
                   imageSrc={fileUrl} 
                   config={config}
                   outputWidth={outputWidthPx}
+                  outputHeight={outputHeightPx}
                 />
               )}
             </div>
