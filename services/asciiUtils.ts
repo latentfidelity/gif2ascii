@@ -59,8 +59,7 @@ export const resizeAndGetImageData = (
   img: CanvasImageSource, // Accepts HTMLImageElement, HTMLVideoElement, ImageBitmap, HTMLCanvasElement etc.
   targetWidth: number,
   fontAspectRatio: number = 0.55,
-  existingCanvas?: HTMLCanvasElement,
-  cropRect?: { x: number; y: number; width: number; height: number }
+  existingCanvas?: HTMLCanvasElement
 ): ImageData | null => {
   // Reuse existing canvas if provided to avoid garbage collection stutter
   const canvas = existingCanvas || document.createElement('canvas');
@@ -91,12 +90,7 @@ export const resizeAndGetImageData = (
      return null;
   }
 
-  const cropWidth = cropRect?.width ?? 0;
-  const cropHeight = cropRect?.height ?? 0;
-  const useCrop = cropWidth > 0 && cropHeight > 0;
-  const sourceWidth = useCrop ? cropWidth : naturalWidth;
-  const sourceHeight = useCrop ? cropHeight : naturalHeight;
-  const aspectRatio = sourceHeight / sourceWidth;
+  const aspectRatio = naturalHeight / naturalWidth;
   
   // Calculate Target Dimensions
   const finalWidth = Math.floor(Math.max(1, targetWidth));
@@ -110,21 +104,7 @@ export const resizeAndGetImageData = (
   }
   
   try {
-    if (useCrop && cropRect) {
-      ctx.drawImage(
-        img,
-        cropRect.x,
-        cropRect.y,
-        cropRect.width,
-        cropRect.height,
-        0,
-        0,
-        finalWidth,
-        finalHeight
-      );
-    } else {
-      ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
-    }
+    ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
     return ctx.getImageData(0, 0, finalWidth, finalHeight);
   } catch (e) {
     console.error("Failed to get image data", e);

@@ -7,18 +7,6 @@ import { DEFAULT_CHARS } from './services/asciiUtils';
 
 const logoUrl = new URL('./lofilogo.png', import.meta.url).href;
 const DEFAULT_DENSITY_CELL_WIDTH = 5;
-type CropMode = 'none' | 'output' | '1:1' | '4:3' | '3:4' | '16:9' | '9:16' | '3:2' | '2:3';
-const CROP_OPTIONS: { value: CropMode; label: string }[] = [
-  { value: 'none', label: 'Off' },
-  { value: 'output', label: 'Match Output' },
-  { value: '1:1', label: '1:1' },
-  { value: '4:3', label: '4:3' },
-  { value: '3:4', label: '3:4' },
-  { value: '16:9', label: '16:9' },
-  { value: '9:16', label: '9:16' },
-  { value: '3:2', label: '3:2' },
-  { value: '2:3', label: '2:3' }
-];
 
 const App: React.FC = () => {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
@@ -36,9 +24,6 @@ const App: React.FC = () => {
   const [outputWidth, setOutputWidth] = useState(0);
   const [outputHeight, setOutputHeight] = useState(0);
   const [lockOutputAspect, setLockOutputAspect] = useState(true);
-  const [cropMode, setCropMode] = useState<CropMode>('none');
-  const [cropX, setCropX] = useState(0.5);
-  const [cropY, setCropY] = useState(0.5);
   const userAdjustedRef = useRef(false);
 
   const inputAspect = inputSize ? (inputSize.height / inputSize.width) : 1;
@@ -53,34 +38,6 @@ const App: React.FC = () => {
   const maxDensity = inputSize
     ? Math.max(300, Math.round(inputSize.width / 2))
     : 300;
-  const cropAspect = useMemo(() => {
-    switch (cropMode) {
-      case 'output':
-        if (outputWidthPx > 0 && outputHeightPx > 0) {
-          return outputWidthPx / outputHeightPx;
-        }
-        return null;
-      case '1:1':
-        return 1;
-      case '4:3':
-        return 4 / 3;
-      case '3:4':
-        return 3 / 4;
-      case '16:9':
-        return 16 / 9;
-      case '9:16':
-        return 9 / 16;
-      case '3:2':
-        return 3 / 2;
-      case '2:3':
-        return 2 / 3;
-      default:
-        return null;
-    }
-  }, [cropMode, outputWidthPx, outputHeightPx]);
-  const sourceAspect = cropAspect ?? inputAspect;
-  const cropLabel = CROP_OPTIONS.find((option) => option.value === cropMode)?.label ?? 'Off';
-  const cropEnabled = cropMode !== 'none';
 
   const config: AsciiConfig = useMemo(() => ({
     resolution: density,
@@ -96,7 +53,7 @@ const App: React.FC = () => {
     userAdjustedRef.current = true;
     setOutputWidth(value);
     if (lockOutputAspect && inputSize) {
-      setOutputHeight(Math.max(1, Math.round(value * sourceAspect)));
+      setOutputHeight(Math.max(1, Math.round(value * inputAspect)));
     }
   };
 
@@ -104,7 +61,7 @@ const App: React.FC = () => {
     userAdjustedRef.current = true;
     setOutputHeight(value);
     if (lockOutputAspect && inputSize) {
-      setOutputWidth(Math.max(1, Math.round(value / sourceAspect)));
+      setOutputWidth(Math.max(1, Math.round(value / inputAspect)));
     }
   };
 
@@ -121,9 +78,6 @@ const App: React.FC = () => {
     // Reset defaults on new file
     setChars(DEFAULT_CHARS);
     setColor('#22d3ee');
-    setCropMode('none');
-    setCropX(0.5);
-    setCropY(0.5);
     const img = new Image();
     img.onload = () => {
       const width = img.naturalWidth || img.width;
@@ -146,9 +100,6 @@ const App: React.FC = () => {
     setInputSize(null);
     setOutputWidth(0);
     setOutputHeight(0);
-    setCropMode('none');
-    setCropX(0.5);
-    setCropY(0.5);
   };
 
   return (
@@ -240,69 +191,13 @@ const App: React.FC = () => {
                   const next = !lockOutputAspect;
                   setLockOutputAspect(next);
                   if (next && inputSize && outputWidthPx > 0) {
-                    setOutputHeight(Math.max(1, Math.round(outputWidthPx * sourceAspect)));
+                    setOutputHeight(Math.max(1, Math.round(outputWidthPx * inputAspect)));
                   }
                 }}
                 className={`w-12 h-6 rounded-full transition-colors relative ${lockOutputAspect ? 'bg-indigo-600' : 'bg-zinc-700'}`}
               >
                 <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${lockOutputAspect ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
-            </div>
-
-            {/* Crop Aspect */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-zinc-400">
-                <span>Crop Aspect</span>
-                <span>{cropLabel}</span>
-              </div>
-              <select
-                value={cropMode}
-                onChange={(e) => setCropMode(e.target.value as CropMode)}
-                disabled={!inputSize}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {CROP_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Crop X */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-zinc-400">
-                <span>Crop X</span>
-                <span>{Math.round(cropX * 100)}%</span>
-              </div>
-              <input 
-                type="range" 
-                min="0" 
-                max="1" 
-                step="0.01"
-                value={cropX} 
-                onChange={(e) => setCropX(Number(e.target.value))}
-                disabled={!inputSize || !cropEnabled}
-                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-            </div>
-
-            {/* Crop Y */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-zinc-400">
-                <span>Crop Y</span>
-                <span>{Math.round(cropY * 100)}%</span>
-              </div>
-              <input 
-                type="range" 
-                min="0" 
-                max="1" 
-                step="0.01"
-                value={cropY} 
-                onChange={(e) => setCropY(Number(e.target.value))}
-                disabled={!inputSize || !cropEnabled}
-                className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
             </div>
 
             {/* Font Aspect Ratio Slider (Calibration) */}
@@ -418,9 +313,6 @@ const App: React.FC = () => {
                   config={config}
                   outputWidth={outputWidthPx}
                   outputHeight={outputHeightPx}
-                  cropAspect={cropAspect}
-                  cropX={cropX}
-                  cropY={cropY}
                 />
               )}
             </div>

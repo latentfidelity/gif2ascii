@@ -10,9 +10,6 @@ interface AsciiPlayerProps {
   config: AsciiConfig;
   outputWidth?: number;
   outputHeight?: number;
-  cropAspect?: number | null;
-  cropX?: number;
-  cropY?: number;
   onFrame?: (base64Frame: string) => void;
 }
 
@@ -28,18 +25,8 @@ interface GifFrame {
 
 const VIDEO_EXPORT_SCALE = 2;
 const VIDEO_EXPORT_BITRATE = 8000000;
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
-const AsciiPlayer: React.FC<AsciiPlayerProps> = ({
-  imageSrc,
-  config,
-  outputWidth,
-  outputHeight,
-  cropAspect,
-  cropX,
-  cropY,
-  onFrame
-}) => {
+const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -61,33 +48,6 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({
   const displayAspectRatio = outputWidth && outputHeight
     ? outputWidth / outputHeight
     : aspectRatio;
-  const getCropRect = useCallback(() => {
-    const canvas = compositionCanvasRef.current;
-    if (!canvas) return null;
-    const srcWidth = canvas.width;
-    const srcHeight = canvas.height;
-    if (!cropAspect || cropAspect <= 0) {
-      return { x: 0, y: 0, width: srcWidth, height: srcHeight };
-    }
-
-    let cropWidth = srcWidth;
-    let cropHeight = Math.round(srcWidth / cropAspect);
-    if (cropHeight > srcHeight) {
-      cropHeight = srcHeight;
-      cropWidth = Math.round(srcHeight * cropAspect);
-    }
-    cropWidth = Math.max(1, Math.min(srcWidth, cropWidth));
-    cropHeight = Math.max(1, Math.min(srcHeight, cropHeight));
-
-    const maxX = Math.max(0, srcWidth - cropWidth);
-    const maxY = Math.max(0, srcHeight - cropHeight);
-    const normX = clamp01(Number.isFinite(cropX) ? cropX : 0.5);
-    const normY = clamp01(Number.isFinite(cropY) ? cropY : 0.5);
-    const x = Math.round(maxX * normX);
-    const y = Math.round(maxY * normY);
-
-    return { x, y, width: cropWidth, height: cropHeight };
-  }, [cropAspect, cropX, cropY]);
 
   // Animation State Refs (Mutable for performance in loop)
   const frameIndexRef = useRef(0);
@@ -177,13 +137,11 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({
      const finalCtx = finalCanvas.getContext('2d', { alpha: false });
      if (!finalCtx) return null;
 
-     const cropRect = getCropRect();
      const imageData = resizeAndGetImageData(
         compositionCanvasRef.current, 
         config.resolution,
         config.fontAspectRatio,
-        getOffscreenCanvas(),
-        cropRect || undefined
+        getOffscreenCanvas()
      );
 
      if (!imageData) return null;
@@ -214,15 +172,11 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({
          }
      }
 
-     if (includeOverlay && config.overlayOpacity > 0 && cropRect) {
+     if (includeOverlay && config.overlayOpacity > 0) {
          finalCtx.save();
          finalCtx.globalAlpha = Math.min(1, Math.max(0, config.overlayOpacity));
          finalCtx.drawImage(
             compositionCanvasRef.current,
-            cropRect.x,
-            cropRect.y,
-            cropRect.width,
-            cropRect.height,
             0,
             0,
             finalCanvas.width,
@@ -232,7 +186,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({
      }
      
      return { finalCtx, finalCanvas };
-  }, [config, getCropRect]);
+  }, [config]);
 
 
   // 2. Render Loop (Playback)
