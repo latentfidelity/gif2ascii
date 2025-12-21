@@ -46,7 +46,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const [exportProgress, setExportProgress] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
   const [displaySize, setDisplaySize] = useState<{ width: number; height: number }>({ width: 1, height: 1 });
-  const displayAspectRatio = aspectRatio;
+  const outputAspectRatio = outputWidth && outputHeight ? outputWidth / outputHeight : 0;
+  const displayAspectRatio = outputAspectRatio > 0 ? outputAspectRatio : aspectRatio;
 
   // Animation State Refs (Mutable for performance in loop)
   const frameIndexRef = useRef(0);
