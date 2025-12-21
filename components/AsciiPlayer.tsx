@@ -25,6 +25,30 @@ interface GifFrame {
 
 const VIDEO_EXPORT_SCALE = 2;
 const VIDEO_EXPORT_BITRATE = 8000000;
+const getCenteredCropRect = (width: number, height: number, targetAspect: number) => {
+  const sourceAspect = height / width;
+  let cropWidth = width;
+  let cropHeight = height;
+  let cropX = 0;
+  let cropY = 0;
+
+  if (targetAspect > sourceAspect) {
+    cropHeight = height;
+    cropWidth = Math.round(height / targetAspect);
+    cropX = Math.round((width - cropWidth) / 2);
+  } else if (targetAspect < sourceAspect) {
+    cropWidth = width;
+    cropHeight = Math.round(width * targetAspect);
+    cropY = Math.round((height - cropHeight) / 2);
+  }
+
+  cropWidth = Math.max(1, Math.min(width, cropWidth));
+  cropHeight = Math.max(1, Math.min(height, cropHeight));
+  cropX = Math.max(0, Math.min(width - cropWidth, cropX));
+  cropY = Math.max(0, Math.min(height - cropHeight, cropY));
+
+  return { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
+};
 
 const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -134,12 +158,20 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
      const finalCanvas = targetCanvas || canvasRef.current;
      if (!finalCanvas || !compositionCanvasRef.current) return null;
      
-     const finalCtx = finalCanvas.getContext('2d', { alpha: false });
+     const finalCtx = finalCanvas.getContext('2d');
      if (!finalCtx) return null;
 
+     const hasTransparentBg = config.backgroundColor === 'transparent';
      const outputAspectRatio = outputWidth && outputHeight
         ? outputHeight / outputWidth
         : undefined;
+     const cropRect = outputAspectRatio && compositionCanvasRef.current
+        ? getCenteredCropRect(
+            compositionCanvasRef.current.width,
+            compositionCanvasRef.current.height,
+            outputAspectRatio
+          )
+        : null;
      const imageData = resizeAndGetImageData(
         compositionCanvasRef.current, 
         config.resolution,
@@ -158,8 +190,12 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
      );
 
      // Clear and Draw Text
-     finalCtx.fillStyle = config.backgroundColor;
-     finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+     if (hasTransparentBg) {
+         finalCtx.clearRect(0, 0, finalCanvas.width, finalCanvas.height);
+     } else {
+         finalCtx.fillStyle = config.backgroundColor;
+         finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+     }
      
      finalCtx.fillStyle = config.color;
      finalCtx.textBaseline = 'top';
@@ -179,13 +215,27 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
      if (includeOverlay && config.overlayOpacity > 0) {
          finalCtx.save();
          finalCtx.globalAlpha = Math.min(1, Math.max(0, config.overlayOpacity));
-         finalCtx.drawImage(
-            compositionCanvasRef.current,
-            0,
-            0,
-            finalCanvas.width,
-            finalCanvas.height
-         );
+         if (cropRect) {
+            finalCtx.drawImage(
+              compositionCanvasRef.current,
+              cropRect.x,
+              cropRect.y,
+              cropRect.width,
+              cropRect.height,
+              0,
+              0,
+              finalCanvas.width,
+              finalCanvas.height
+            );
+         } else {
+            finalCtx.drawImage(
+              compositionCanvasRef.current,
+              0,
+              0,
+              finalCanvas.width,
+              finalCanvas.height
+            );
+         }
          finalCtx.restore();
      }
      
@@ -379,8 +429,17 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             if (renderResult) {
                 const { finalCtx, finalCanvas } = renderResult;
                 const pixels = finalCtx.getImageData(0, 0, finalCanvas.width, finalCanvas.height).data;
-                const palette = quantize(pixels, 256);
-                const index = applyPalette(pixels, palette);
+                const isTransparentBg = config.backgroundColor === 'transparent';
+                const palette = quantize(
+                    pixels,
+                    256,
+                    isTransparentBg ? { format: 'rgba4444', clearAlpha: false, oneBitAlpha: true } : undefined
+                );
+                const paletteFormat = isTransparentBg ? 'rgba4444' : 'rgb565';
+                const index = applyPalette(pixels, palette, paletteFormat);
+                const transparentIndex = isTransparentBg
+                    ? palette.findIndex((color) => color[3] === 0)
+                    : -1;
                 
                 // Delay Calculation Fix:
                 // 1. gifuct-js provides delay in 'milliseconds' (e.g., 30, 40, 100).
@@ -398,7 +457,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
                 gif.writeFrame(index, finalCanvas.width, finalCanvas.height, { 
                     palette, 
-                    delay: exportDelay 
+                    delay: exportDelay,
+                    transparent: transparentIndex >= 0,
+                    transparentIndex: transparentIndex >= 0 ? transparentIndex : 0
                 });
             }
 

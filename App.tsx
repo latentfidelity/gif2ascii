@@ -38,13 +38,14 @@ const App: React.FC = () => {
   const maxDensity = inputSize
     ? Math.max(300, Math.round(inputSize.width / 2))
     : 300;
+  const bgIsTransparent = bgColor === 'transparent';
 
   const config: AsciiConfig = useMemo(() => ({
     resolution: density,
     chars,
     color,
     backgroundColor: bgColor,
-    invert,
+    invert: !invert,
     fontAspectRatio,
     overlayOpacity
   }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity]);
@@ -253,11 +254,21 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-2 bg-zinc-800 p-2 rounded-lg border border-zinc-700">
                    <input 
                     type="color" 
-                    value={bgColor}
+                    value={bgIsTransparent ? '#000000' : bgColor}
                     onChange={(e) => setBgColor(e.target.value)}
+                    disabled={bgIsTransparent}
                     className="w-6 h-6 rounded bg-transparent cursor-pointer border-none p-0"
                    />
-                   <span className="text-xs font-mono text-zinc-400">{bgColor}</span>
+                   <span className="text-xs font-mono text-zinc-400">{bgIsTransparent ? 'transparent' : bgColor}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-400">Transparent</span>
+                  <button 
+                    onClick={() => setBgColor(bgIsTransparent ? '#000000' : 'transparent')}
+                    className={`w-12 h-6 rounded-full transition-colors relative ${bgIsTransparent ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+                  >
+                    <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${bgIsTransparent ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
                 </div>
               </div>
             </div>

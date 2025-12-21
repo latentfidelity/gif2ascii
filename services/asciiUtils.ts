@@ -91,9 +91,32 @@ export const resizeAndGetImageData = (
      return null;
   }
 
-  const aspectRatio = (overrideAspectRatio && overrideAspectRatio > 0)
+  const sourceAspect = naturalHeight / naturalWidth;
+  const targetAspect = (overrideAspectRatio && overrideAspectRatio > 0)
     ? overrideAspectRatio
-    : (naturalHeight / naturalWidth);
+    : sourceAspect;
+  const aspectRatio = targetAspect;
+  let sourceX = 0;
+  let sourceY = 0;
+  let sourceWidth = naturalWidth;
+  let sourceHeight = naturalHeight;
+
+  if (overrideAspectRatio && overrideAspectRatio > 0 && sourceAspect !== targetAspect) {
+    if (targetAspect > sourceAspect) {
+      sourceHeight = naturalHeight;
+      sourceWidth = Math.round(naturalHeight / targetAspect);
+      sourceX = Math.round((naturalWidth - sourceWidth) / 2);
+    } else {
+      sourceWidth = naturalWidth;
+      sourceHeight = Math.round(naturalWidth * targetAspect);
+      sourceY = Math.round((naturalHeight - sourceHeight) / 2);
+    }
+
+    sourceWidth = Math.max(1, Math.min(naturalWidth, sourceWidth));
+    sourceHeight = Math.max(1, Math.min(naturalHeight, sourceHeight));
+    sourceX = Math.max(0, Math.min(naturalWidth - sourceWidth, sourceX));
+    sourceY = Math.max(0, Math.min(naturalHeight - sourceHeight, sourceY));
+  }
   
   // Calculate Target Dimensions
   const finalWidth = Math.floor(Math.max(1, targetWidth));
@@ -107,7 +130,17 @@ export const resizeAndGetImageData = (
   }
   
   try {
-    ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
+    ctx.drawImage(
+      img,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      finalWidth,
+      finalHeight
+    );
     return ctx.getImageData(0, 0, finalWidth, finalHeight);
   } catch (e) {
     console.error("Failed to get image data", e);
