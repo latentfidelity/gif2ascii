@@ -171,7 +171,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
 
   // 2. Render Loop (Playback)
   const renderLoop = useCallback((timestamp: number) => {
-    if (!isPlaying || isExporting || !canvasRef.current || frames.length === 0 || !compositionCtxRef.current || !compositionCanvasRef.current) {
+    if (!isPlaying || (isExporting && !mediaRecorderRef.current) || !canvasRef.current || frames.length === 0 || !compositionCtxRef.current || !compositionCanvasRef.current) {
       requestRef.current = requestAnimationFrame(renderLoop);
       return;
     }
