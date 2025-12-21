@@ -4,6 +4,7 @@ import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { AsciiConfig } from '../types';
 import { resizeAndGetImageData, convertToAscii } from '../services/asciiUtils';
+import { EXPORT_CELL_WIDTH } from '../constants';
 
 interface AsciiPlayerProps {
   imageSrc: string;
@@ -21,7 +22,6 @@ interface GifFrame {
   transparentIndex: number;
 }
 
-const EXPORT_CELL_WIDTH = 5;
 const VIDEO_EXPORT_SCALE = 2;
 const VIDEO_EXPORT_BITRATE = 8000000;
 

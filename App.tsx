@@ -4,6 +4,7 @@ import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
 import { AsciiConfig, AppState } from './types';
 import { DEFAULT_CHARS } from './services/asciiUtils';
+import { EXPORT_CELL_WIDTH } from './constants';
 
 const logoUrl = new URL('./lofilogo.png', import.meta.url).href;
 
@@ -19,6 +20,12 @@ const App: React.FC = () => {
   const [bgColor, setBgColor] = useState('#000000');
   const [fontAspectRatio, setFontAspectRatio] = useState(0.55);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
+  const [inputSize, setInputSize] = useState<{ width: number; height: number } | null>(null);
+
+  const outputWidthPx = Math.max(1, Math.round(resolution * EXPORT_CELL_WIDTH));
+  const maxResolution = inputSize
+    ? Math.max(250, Math.round((inputSize.width / EXPORT_CELL_WIDTH) * 2))
+    : 250;
 
   const config: AsciiConfig = useMemo(() => ({
     resolution,
@@ -37,11 +44,22 @@ const App: React.FC = () => {
     // Reset defaults on new file
     setChars(DEFAULT_CHARS);
     setColor('#22d3ee');
+    const img = new Image();
+    img.onload = () => {
+      const width = img.naturalWidth || img.width;
+      const height = img.naturalHeight || img.height;
+      if (width > 0 && height > 0) {
+        setInputSize({ width, height });
+        setResolution(Math.max(1, Math.round(width / EXPORT_CELL_WIDTH)));
+      }
+    };
+    img.src = url;
   };
 
   const reset = () => {
     setFileUrl(null);
     setAppState(AppState.IDLE);
+    setInputSize(null);
   };
 
   return (
@@ -78,13 +96,13 @@ const App: React.FC = () => {
             {/* Resolution Slider */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs text-zinc-400">
-                <span>Density</span>
-                <span>{resolution}px</span>
+                <span>Resolution</span>
+                <span>{outputWidthPx}px ({resolution} cols)</span>
               </div>
               <input 
                 type="range" 
-                min="40" 
-                max="250" 
+                min="1" 
+                max={maxResolution} 
                 value={resolution} 
                 onChange={(e) => setResolution(Number(e.target.value))}
                 className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
