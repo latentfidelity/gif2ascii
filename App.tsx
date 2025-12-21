@@ -300,7 +300,7 @@ const App: React.FC = () => {
 
         {/* Right Column: Viewer */}
         <div className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 relative flex flex-col min-h-[500px] justify-center items-center">
-          
+
           {appState === AppState.IDLE ? (
              <div className="w-full h-full flex items-center justify-center">
                 <FileUpload onFileSelect={handleFileSelect} />
@@ -308,8 +308,8 @@ const App: React.FC = () => {
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               {fileUrl && (
-                <AsciiPlayer 
-                  imageSrc={fileUrl} 
+                <AsciiPlayer
+                  imageSrc={fileUrl}
                   config={config}
                   outputWidth={outputWidthPx}
                   outputHeight={outputHeightPx}

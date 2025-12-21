@@ -1,0 +1,45 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Build & Run Commands
+
+- **Development server**: `npm run dev` (runs on port 3000)
+- **Production build**: `npm run build`
+- **Preview production build**: `npm run preview`
+
+## Architecture
+
+Gif2Ascii is a React-based web app that converts GIF animations to ASCII art rendered on canvas, with export capabilities.
+
+### Core Flow
+
+1. **FileUpload** accepts GIF/image files via drag-drop or file picker
+2. **App** manages configuration state (density, colors, font aspect ratio, output dimensions)
+3. **AsciiPlayer** handles:
+   - GIF parsing via `gifuct-js` (decompresses frames with proper disposal handling)
+   - Frame composition on an offscreen canvas (handles GIF disposal types 2/3)
+   - ASCII conversion via `services/asciiUtils.ts`
+   - Canvas rendering with JetBrains Mono font
+   - Export to GIF (`gifenc`) or WebM (MediaRecorder API)
+
+### Key Files
+
+- `App.tsx` - Main component with all render settings state
+- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~620 lines)
+- `services/asciiUtils.ts` - Image-to-ASCII conversion algorithms
+- `types.ts` - TypeScript interfaces (AsciiConfig, AppState)
+
+### ASCII Conversion Pipeline
+
+`resizeAndGetImageData()` → scales source to target resolution accounting for font aspect ratio → `convertToAscii()` → maps pixel luminance to character set
+
+The character map goes from dark to light (e.g., `@%#*+=-:. `). The `invert` flag reverses this mapping.
+
+### GIF Frame Handling
+
+Uses a composition canvas pattern: each frame's patch is drawn onto a persistent canvas, respecting GIF disposal types. The composition canvas represents the current visual state that gets converted to ASCII.
+
+### Styling
+
+Uses Tailwind CSS via CDN (in index.html). Fonts: Inter for UI, JetBrains Mono for ASCII rendering.

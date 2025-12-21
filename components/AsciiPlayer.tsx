@@ -522,100 +522,92 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   }
 
   return (
-    <div 
-      className="group relative flex items-center justify-center overflow-hidden rounded-xl shadow-2xl border border-zinc-800 transition-colors duration-300"
-      style={{ 
-        backgroundColor: config.backgroundColor,
-        width: '100%',
-        height: '100%'
-      }}
+    <div
+      ref={frameRef}
+      className="w-full h-full flex items-center justify-center"
     >
-        {isLoading && (
-            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm text-zinc-400">
-                <Loader2 className="animate-spin mb-2" size={32} />
-                <p className="text-xs uppercase tracking-widest">Parsing GIF...</p>
-            </div>
-        )}
+      <div
+        className="group relative overflow-hidden rounded-xl shadow-2xl border border-zinc-800 transition-colors duration-300"
+        style={{
+          backgroundColor: config.backgroundColor,
+          width: `${displaySize.width}px`,
+          height: `${displaySize.height}px`
+        }}
+      >
+          {isLoading && (
+              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm text-zinc-400">
+                  <Loader2 className="animate-spin mb-2" size={32} />
+                  <p className="text-xs uppercase tracking-widest">Parsing GIF...</p>
+              </div>
+          )}
 
-        {isExporting && (
-             <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px] text-white">
-                 <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 min-w-[200px]">
-                    <Loader2 className="animate-spin text-indigo-500" size={32} />
-                    <div className="text-center">
-                        <p className="font-medium mb-1">
-                            {mediaRecorderRef.current ? 'Recording Video...' : 'Rendering GIF...'}
-                        </p>
-                        {!mediaRecorderRef.current && (
-                             <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2 overflow-hidden">
-                                <div 
-                                    className="bg-indigo-500 h-full transition-all duration-75 ease-out" 
-                                    style={{ width: `${exportProgress}%` }}
-                                />
-                             </div>
-                        )}
-                    </div>
-                    {mediaRecorderRef.current && <p className="text-xs text-zinc-400">Wait for loop to finish...</p>}
-                 </div>
-             </div>
-        )}
+          {isExporting && (
+               <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px] text-white">
+                   <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 min-w-[200px]">
+                      <Loader2 className="animate-spin text-indigo-500" size={32} />
+                      <div className="text-center">
+                          <p className="font-medium mb-1">
+                              {mediaRecorderRef.current ? 'Recording Video...' : 'Rendering GIF...'}
+                          </p>
+                          {!mediaRecorderRef.current && (
+                               <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                                  <div
+                                      className="bg-indigo-500 h-full transition-all duration-75 ease-out"
+                                      style={{ width: `${exportProgress}%` }}
+                                  />
+                               </div>
+                          )}
+                      </div>
+                      {mediaRecorderRef.current && <p className="text-xs text-zinc-400">Wait for loop to finish...</p>}
+                   </div>
+               </div>
+          )}
 
-        <div
-            ref={frameRef}
-            className="w-full h-full flex items-center justify-center"
-        >
-            <div
-                style={{
-                    width: `${displaySize.width}px`,
-                    height: `${displaySize.height}px`,
-                    position: 'relative'
-                }}
-            >
-                <canvas ref={canvasRef} className="w-full h-full block" />
-            </div>
-        </div>
+          <canvas ref={canvasRef} className="w-full h-full block" />
 
-        {/* Controls */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-2 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl">
-             <button 
-                onClick={togglePlay}
-                disabled={isExporting}
-                className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
-                title={isPlaying ? "Pause" : "Play"}
-             >
-                {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-             </button>
-             
-             <div className="w-px h-4 bg-zinc-700" />
-             
-             <button 
-                onClick={restart}
-                disabled={isExporting}
-                className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
-                title="Restart"
-             >
-                <RotateCcw size={18} />
-             </button>
+          {/* Controls */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-2 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl">
+               <button
+                  onClick={togglePlay}
+                  disabled={isExporting}
+                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
+                  title={isPlaying ? "Pause" : "Play"}
+               >
+                  {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+               </button>
 
-             <div className="w-px h-4 bg-zinc-700" />
-             
-             <button 
-                onClick={handleExportVideo}
-                disabled={isExporting}
-                className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
-                title="Export Video (WEBM)"
-             >
-                <Video size={18} />
-             </button>
+               <div className="w-px h-4 bg-zinc-700" />
 
-             <button 
-                onClick={handleExportGif}
-                disabled={isExporting}
-                className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
-                title="Export GIF"
-             >
-                <FileImage size={18} />
-             </button>
-        </div>
+               <button
+                  onClick={restart}
+                  disabled={isExporting}
+                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
+                  title="Restart"
+               >
+                  <RotateCcw size={18} />
+               </button>
+
+               <div className="w-px h-4 bg-zinc-700" />
+
+               <button
+                  onClick={handleExportVideo}
+                  disabled={isExporting}
+                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                  title="Export Video (WEBM)"
+               >
+                  <Video size={18} />
+               </button>
+
+               <button
+                  onClick={handleExportGif}
+                  disabled={isExporting}
+                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                  title="Export GIF"
+               >
+                  <FileImage size={18} />
+               </button>
+          </div>
+      </div>
     </div>
   );
 };
