@@ -25,6 +25,75 @@ interface GifFrame {
 
 const VIDEO_EXPORT_SCALE = 2;
 const VIDEO_EXPORT_BITRATE = 8000000;
+
+// Floyd-Steinberg dithering for better GIF quality
+const applyFloydSteinberg = (
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  palette: [number, number, number][]
+): Uint8ClampedArray => {
+  const pixels = new Float32Array(data.length);
+  for (let i = 0; i < data.length; i++) pixels[i] = data[i];
+
+  const findNearest = (r: number, g: number, b: number): [number, number, number] => {
+    let minDist = Infinity;
+    let nearest = palette[0];
+    for (const c of palette) {
+      const dr = r - c[0], dg = g - c[1], db = b - c[2];
+      const dist = dr * dr + dg * dg + db * db;
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = c;
+      }
+    }
+    return nearest;
+  };
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const oldR = pixels[i], oldG = pixels[i + 1], oldB = pixels[i + 2];
+      const [newR, newG, newB] = findNearest(oldR, oldG, oldB);
+
+      pixels[i] = newR;
+      pixels[i + 1] = newG;
+      pixels[i + 2] = newB;
+
+      const errR = oldR - newR, errG = oldG - newG, errB = oldB - newB;
+
+      if (x + 1 < width) {
+        pixels[i + 4] += errR * 7 / 16;
+        pixels[i + 5] += errG * 7 / 16;
+        pixels[i + 6] += errB * 7 / 16;
+      }
+      if (y + 1 < height) {
+        if (x > 0) {
+          const j = ((y + 1) * width + (x - 1)) * 4;
+          pixels[j] += errR * 3 / 16;
+          pixels[j + 1] += errG * 3 / 16;
+          pixels[j + 2] += errB * 3 / 16;
+        }
+        const j = ((y + 1) * width + x) * 4;
+        pixels[j] += errR * 5 / 16;
+        pixels[j + 1] += errG * 5 / 16;
+        pixels[j + 2] += errB * 5 / 16;
+        if (x + 1 < width) {
+          const k = ((y + 1) * width + (x + 1)) * 4;
+          pixels[k] += errR / 16;
+          pixels[k + 1] += errG / 16;
+          pixels[k + 2] += errB / 16;
+        }
+      }
+    }
+  }
+
+  const result = new Uint8ClampedArray(data.length);
+  for (let i = 0; i < pixels.length; i++) {
+    result[i] = Math.max(0, Math.min(255, Math.round(pixels[i])));
+  }
+  return result;
+};
 const getCenteredCropRect = (width: number, height: number, targetAspect: number) => {
   const sourceAspect = height / width;
   let cropWidth = width;
@@ -428,15 +497,23 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             
             if (renderResult) {
                 const { finalCtx, finalCanvas } = renderResult;
-                const pixels = finalCtx.getImageData(0, 0, finalCanvas.width, finalCanvas.height).data;
+                const imageData = finalCtx.getImageData(0, 0, finalCanvas.width, finalCanvas.height);
+                const pixels = imageData.data;
                 const isTransparentBg = config.backgroundColor === 'transparent';
                 const palette = quantize(
                     pixels,
                     256,
                     isTransparentBg ? { format: 'rgba4444', clearAlpha: false, oneBitAlpha: true } : undefined
                 );
+                // Apply Floyd-Steinberg dithering for smoother gradients
+                const ditheredPixels = applyFloydSteinberg(
+                    pixels,
+                    finalCanvas.width,
+                    finalCanvas.height,
+                    palette as [number, number, number][]
+                );
                 const paletteFormat = isTransparentBg ? 'rgba4444' : 'rgb565';
-                const index = applyPalette(pixels, palette, paletteFormat);
+                const index = applyPalette(ditheredPixels, palette, paletteFormat);
                 const transparentIndex = isTransparentBg
                     ? palette.findIndex((color) => color[3] === 0)
                     : -1;

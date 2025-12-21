@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Production build**: `npm run build`
 - **Preview production build**: `npm run preview`
 
+No linting or test scripts are configured.
+
 ## Environment Variables
 
 Create a `.env` file in the project root for optional Tenor GIF search:
@@ -51,7 +53,7 @@ Uses a composition canvas pattern: each frame's patch is drawn onto a persistent
 
 ### Tenor Proxy
 
-In development, Vite proxies `/tenor` to `https://tenor.googleapis.com` to avoid CORS issues. See `vite.config.ts`.
+In development/preview, Vite proxies `/tenor` to `https://tenor.googleapis.com` to avoid CORS issues. In production (GitHub Pages), API calls go directly to Tenor's endpoint. See `vite.config.ts`.
 
 ### Styling
 
