@@ -27,7 +27,6 @@ const App: React.FC = () => {
   const userAdjustedRef = useRef(false);
 
   const inputAspect = inputSize ? (inputSize.height / inputSize.width) : 1;
-  const inputDisplayAspect = inputSize ? (inputSize.width / inputSize.height) : 1;
   const outputWidthPx = outputWidth > 0 ? outputWidth : (inputSize?.width ?? 0);
   const outputHeightPx = outputHeight > 0 ? outputHeight : (inputSize?.height ?? 0);
   const maxOutputWidth = inputSize
@@ -314,7 +313,6 @@ const App: React.FC = () => {
                   config={config}
                   outputWidth={outputWidthPx}
                   outputHeight={outputHeightPx}
-                  inputAspect={inputDisplayAspect}
                 />
               )}
             </div>
