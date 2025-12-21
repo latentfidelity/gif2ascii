@@ -10,6 +10,7 @@ interface AsciiPlayerProps {
   config: AsciiConfig;
   outputWidth?: number;
   outputHeight?: number;
+  inputAspect?: number;
   onFrame?: (base64Frame: string) => void;
 }
 
@@ -26,7 +27,7 @@ interface GifFrame {
 const VIDEO_EXPORT_SCALE = 2;
 const VIDEO_EXPORT_BITRATE = 8000000;
 
-const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, onFrame }) => {
+const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, inputAspect, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   
@@ -46,7 +47,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const [exportProgress, setExportProgress] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
   const [displaySize, setDisplaySize] = useState<{ width: number; height: number }>({ width: 1, height: 1 });
-  const displayAspectRatio = aspectRatio;
+  const displayAspectRatio = inputAspect && inputAspect > 0 ? inputAspect : aspectRatio;
 
   // Animation State Refs (Mutable for performance in loop)
   const frameIndexRef = useRef(0);
