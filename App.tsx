@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
 import { Settings, RefreshCcw, Layers, Monitor } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
@@ -53,6 +53,11 @@ const App: React.FC = () => {
     fontAspectRatio,
     overlayOpacity
   }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity]);
+
+  // Defer expensive config updates to keep sliders responsive
+  const deferredConfig = useDeferredValue(config);
+  const deferredOutputWidth = useDeferredValue(outputWidthPx);
+  const deferredOutputHeight = useDeferredValue(outputHeightPx);
 
   const handleOutputWidthChange = (value: number) => {
     userAdjustedRef.current = true;
@@ -363,9 +368,9 @@ const App: React.FC = () => {
                 {fileUrl && (
                   <AsciiPlayer
                     imageSrc={fileUrl}
-                    config={config}
-                    outputWidth={outputWidthPx}
-                    outputHeight={outputHeightPx}
+                    config={deferredConfig}
+                    outputWidth={deferredOutputWidth}
+                    outputHeight={deferredOutputHeight}
                     export2x={export2x}
                   />
                 )}
