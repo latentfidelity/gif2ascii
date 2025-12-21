@@ -31,7 +31,7 @@ Gif2Ascii is a React-based web app that converts GIF animations to ASCII art ren
    - Frame composition on an offscreen canvas (handles GIF disposal types 2/3)
    - ASCII conversion via `services/asciiUtils.ts`
    - Canvas rendering with JetBrains Mono font
-   - Export to GIF (`gifenc`) or WebM (MediaRecorder API)
+   - Export to GIF (`gifenc`) or MP4 (`mediabunny` via WebCodecs, with WebM fallback)
 
 ### Key Files
 
@@ -39,17 +39,30 @@ Gif2Ascii is a React-based web app that converts GIF animations to ASCII art ren
 - `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~680 lines)
 - `components/TenorSearch.tsx` - Tenor API integration with debounced search
 - `services/asciiUtils.ts` - Image-to-ASCII conversion algorithms
+- `services/videoExport.ts` - MP4/WebM video export with WebCodecs
 - `types.ts` - TypeScript interfaces (AsciiConfig, AsciiFrame, AppState)
 
 ### ASCII Conversion Pipeline
 
 `resizeAndGetImageData()` → scales source to target resolution accounting for font aspect ratio → `convertToAscii()` → maps pixel luminance to character set
 
-The character map goes from dark to light (e.g., `@%#*+=-:. `). The `invert` flag reverses this mapping.
+Two character sets are available in `asciiUtils.ts`:
+- `DEFAULT_CHARS`: `@%#*+=-:. ` (10 chars, used for normal density)
+- `DENSE_CHARS`: 70 chars from `$` to space (used for high density mode)
+
+Characters map dark to light. The `invert` flag reverses this mapping.
 
 ### GIF Frame Handling
 
 Uses a composition canvas pattern: each frame's patch is drawn onto a persistent canvas, respecting GIF disposal types. The composition canvas represents the current visual state that gets converted to ASCII.
+
+### Video Export
+
+Video export uses frame-by-frame encoding via `services/videoExport.ts`:
+- **MP4 (H.264)**: Uses `mediabunny` library with WebCodecs API. Works in Chrome, Edge, Safari.
+- **WebM (VP9)**: Fallback for Firefox and older browsers via MediaRecorder API.
+
+Export settings: 2x resolution scaling, 8 Mbps bitrate, 30 fps.
 
 ### Tenor Proxy
 

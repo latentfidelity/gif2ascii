@@ -4,6 +4,7 @@ import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { AsciiConfig } from '../types';
 import { resizeAndGetImageData, convertToAscii } from '../services/asciiUtils';
+import { exportVideo, downloadBlob, isMP4ExportSupported } from '../services/videoExport';
 
 interface AsciiPlayerProps {
   imageSrc: string;
@@ -148,12 +149,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const requestRef = useRef<number>();
   const frameCapturedRef = useRef<boolean>(false);
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null); // For resizing
-  const videoExportCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  
-  // Recording Refs
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
-  
+    
   // Helper: Offscreen canvas for scaling
   const getOffscreenCanvas = () => {
     if (!offscreenCanvasRef.current) {
@@ -314,22 +310,22 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
   // 2. Render Loop (Playback)
   const renderLoop = useCallback((timestamp: number) => {
-    if (!isPlaying || (isExporting && !mediaRecorderRef.current) || !canvasRef.current || frames.length === 0 || !compositionCtxRef.current || !compositionCanvasRef.current) {
+    if (!isPlaying || isExporting || !canvasRef.current || frames.length === 0 || !compositionCtxRef.current || !compositionCanvasRef.current) {
       requestRef.current = requestAnimationFrame(renderLoop);
       return;
     }
 
     const currentFrame = frames[frameIndexRef.current];
-    
+
     // Playback Timing:
-    // If delay is 0, we treat it as 100ms for playback comfort, 
+    // If delay is 0, we treat it as 100ms for playback comfort,
     // unless it's a very high framerate gif where 0 means "as fast as possible".
     // Standard browsers treat 0 as 100ms (10fps).
     const delay = currentFrame.delay === 0 ? 100 : currentFrame.delay;
 
     // Check if it's time to advance frame
     if (timestamp - lastFrameTimeRef.current >= delay) {
-        
+
         // --- COMPOSITION UPDATE ---
         const ctx = compositionCtxRef.current;
         const frame = currentFrame;
@@ -344,10 +340,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         }
 
         // --- RENDER ASCII TO SCREEN ---
-        const renderTarget = mediaRecorderRef.current && videoExportCanvasRef.current
-            ? videoExportCanvasRef.current
-            : undefined;
-        const renderResult = renderCurrentFrameToCanvas(renderTarget, !renderTarget);
+        const renderResult = renderCurrentFrameToCanvas(undefined, true);
 
         // AI Frame Capture (Once per file load)
         if (renderResult && !frameCapturedRef.current && onFrame) {
@@ -360,18 +353,10 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
         // Advance Frame
         lastFrameTimeRef.current = timestamp;
-        
+
         // Handle disposal 2 (Clear) for NEXT frame
         if (frame.disposalType === 2) {
              ctx.clearRect(left, top, width, height);
-        }
-
-        // --- VIDEO RECORDING CHECK ---
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            // Stop if we wrapped around
-            if (frameIndexRef.current === frames.length - 1) {
-                mediaRecorderRef.current.stop();
-            }
         }
 
         frameIndexRef.current = (frameIndexRef.current + 1) % frames.length;
@@ -580,28 +565,23 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   };
 
 
-  const handleExportVideo = useCallback(() => {
-     // WEBM Export uses MediaRecorder which records real-time.
-     // To avoid lag affecting the video, we should ideally use CanvasCaptureMediaStreamTrack 
-     // but that's complex to sync manually. 
-     // For now, we'll use the existing "record the playback" method but reset cleanly.
-     
+  const handleExportVideo = useCallback(async () => {
     if (!canvasRef.current || frames.length === 0 || isExporting) return;
-    
+
     setIsExporting(true);
-    setExportProgress(0); // Indeterminate
-    
-    // Restart animation for clean loop
-    frameIndexRef.current = 0;
-    lastFrameTimeRef.current = 0;
-    if (compositionCtxRef.current && compositionCanvasRef.current) {
-        compositionCtxRef.current.clearRect(0, 0, compositionCanvasRef.current.width, compositionCanvasRef.current.height);
-    }
-    setIsPlaying(true);
-    
+    setIsPlaying(false);
+    setExportProgress(0);
+
+    // Give UI a moment to update
+    await new Promise(r => setTimeout(r, 50));
+
     try {
-        const exportCanvas = document.createElement('canvas');
         const compCanvas = compositionCanvasRef.current!;
+        const compCtx = compositionCtxRef.current!;
+
+        // Reset composition for clean export
+        compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+
         const aspect = compCanvas.height / compCanvas.width;
         const baseWidth = Math.max(
             1,
@@ -613,48 +593,65 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         );
         const exportWidth = Math.max(1, Math.floor(baseWidth * VIDEO_EXPORT_SCALE));
         const exportHeight = Math.max(1, Math.floor(baseHeight * VIDEO_EXPORT_SCALE));
+
+        // Create export canvas
+        const exportCanvas = document.createElement('canvas');
         exportCanvas.width = exportWidth;
         exportCanvas.height = exportHeight;
-        videoExportCanvasRef.current = exportCanvas;
-        const stream = exportCanvas.captureStream(30); 
-        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
-            ? 'video/webm;codecs=vp9' 
-            : 'video/webm';
-            
-        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: VIDEO_EXPORT_BITRATE });
-        mediaRecorderRef.current = recorder;
-        recordedChunksRef.current = [];
 
-        recorder.ondataavailable = (e) => {
-            if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+        // Frame renderer function - updates composition and renders ASCII
+        const renderFrame = (frameIndex: number, targetCanvas: HTMLCanvasElement) => {
+            const frame = frames[frameIndex];
+            const { width, height, top, left } = frame.dims;
+
+            // Update composition canvas
+            if (frame.patch && patchCtxRef.current && patchCanvasRef.current) {
+                const patchData = new ImageData(frame.patch, width, height);
+                patchCanvasRef.current.width = width;
+                patchCanvasRef.current.height = height;
+                patchCtxRef.current.putImageData(patchData, 0, 0);
+                compCtx.drawImage(patchCanvasRef.current, left, top);
+            }
+
+            // Render ASCII to target canvas
+            renderCurrentFrameToCanvas(targetCanvas, false);
+
+            // Handle disposal for next frame
+            if (frame.disposalType === 2) {
+                compCtx.clearRect(left, top, width, height);
+            }
         };
 
-        recorder.onstop = () => {
-            const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = `ascii-render-${Date.now()}.webm`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            
-            setIsExporting(false);
-            mediaRecorderRef.current = null;
-            videoExportCanvasRef.current = null;
-        };
+        const result = await exportVideo({
+            frames,
+            config: {
+                width: exportWidth,
+                height: exportHeight,
+                bitrate: VIDEO_EXPORT_BITRATE,
+                framerate: 30,
+            },
+            canvas: exportCanvas,
+            renderFrame,
+            onProgress: setExportProgress,
+        });
 
-        recorder.start();
-        
+        // Download the result
+        const extension = result.format;
+        downloadBlob(result.blob, `ascii-render-${Date.now()}.${extension}`);
+
     } catch (e) {
-        console.error("Export failed", e);
+        console.error("Video export failed", e);
+        alert("Video export failed. Please try again.");
+    } finally {
         setIsExporting(false);
-        videoExportCanvasRef.current = null;
-        alert("Video export is not supported in this browser.");
+        setIsPlaying(true);
+        // Reset composition state
+        frameIndexRef.current = 0;
+        if (compositionCtxRef.current && compositionCanvasRef.current) {
+            compositionCtxRef.current.clearRect(0, 0, compositionCanvasRef.current.width, compositionCanvasRef.current.height);
+        }
     }
-  }, [frames, isExporting]);
+  }, [frames, isExporting, renderCurrentFrameToCanvas]);
 
   if (error) {
     return (
@@ -689,19 +686,14 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
                    <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 min-w-[200px]">
                       <Loader2 className="animate-spin text-indigo-500" size={32} />
                       <div className="text-center">
-                          <p className="font-medium mb-1">
-                              {mediaRecorderRef.current ? 'Recording Video...' : 'Rendering GIF...'}
-                          </p>
-                          {!mediaRecorderRef.current && (
-                               <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2 overflow-hidden">
-                                  <div
-                                      className="bg-indigo-500 h-full transition-all duration-75 ease-out"
-                                      style={{ width: `${exportProgress}%` }}
-                                  />
-                               </div>
-                          )}
+                          <p className="font-medium mb-1">Rendering...</p>
+                          <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                              <div
+                                  className="bg-indigo-500 h-full transition-all duration-75 ease-out"
+                                  style={{ width: `${exportProgress}%` }}
+                              />
+                          </div>
                       </div>
-                      {mediaRecorderRef.current && <p className="text-xs text-zinc-400">Wait for loop to finish...</p>}
                    </div>
                </div>
           )}
@@ -736,7 +728,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
                   onClick={handleExportVideo}
                   disabled={isExporting}
                   className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
-                  title="Export Video (WEBM)"
+                  title="Export Video"
                >
                   <Video size={18} />
                </button>

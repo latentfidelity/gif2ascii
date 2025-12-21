@@ -38,12 +38,15 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<TenorResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectingId, setSelectingId] = useState<string | null>(null);
+  const [nextPos, setNextPos] = useState<string | null>(null);
   const isMountedRef = useRef(true);
   const requestIdRef = useRef(0);
   const debounceRef = useRef<number | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const tenorApiKey = import.meta.env.VITE_TENOR_API_KEY || '';
   const gridCols = gridClassName || 'grid-cols-3';
   const resultsContainerClass = compact
@@ -73,7 +76,7 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
     return url;
   };
 
-  const fetchTenor = async (url: URL, markSearched: boolean) => {
+  const fetchTenor = async (url: URL, markSearched: boolean, append = false) => {
     if (!tenorApiKey) {
       setError('Add VITE_TENOR_API_KEY to .env to enable Tenor search.');
       return;
@@ -83,7 +86,11 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    setLoading(true);
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     if (markSearched) {
       setHasSearched(true);
@@ -98,9 +105,14 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
         throw new Error(`Tenor API error (${resp.status})`);
       }
       const data = await resp.json();
-      const nextResults = Array.isArray(data.results) ? data.results : [];
+      const newResults = Array.isArray(data.results) ? data.results : [];
       if (isMountedRef.current && requestId === requestIdRef.current) {
-        setResults(nextResults);
+        if (append) {
+          setResults((prev) => [...prev, ...newResults]);
+        } else {
+          setResults(newResults);
+        }
+        setNextPos(data.next || null);
       }
     } catch (err: any) {
       if (!isMountedRef.current || requestId !== requestIdRef.current) return;
@@ -116,19 +128,50 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
       window.clearTimeout(timeoutId);
       if (isMountedRef.current && requestId === requestIdRef.current) {
         setLoading(false);
+        setLoadingMore(false);
       }
     }
   };
 
-  const fetchFeatured = async () => {
-    const url = buildTenorUrl('featured');
-    await fetchTenor(url, false);
+  const fetchFeatured = async (pos?: string) => {
+    const params = pos ? { pos } : undefined;
+    const url = buildTenorUrl('featured', params);
+    await fetchTenor(url, false, !!pos);
   };
 
-  const fetchSearch = async (term: string, markSearched = true) => {
-    const url = buildTenorUrl('search', { q: term });
-    await fetchTenor(url, markSearched);
+  const fetchSearch = async (term: string, markSearched = true, pos?: string) => {
+    const params: Record<string, string> = { q: term };
+    if (pos) params.pos = pos;
+    const url = buildTenorUrl('search', params);
+    await fetchTenor(url, markSearched, !!pos);
   };
+
+  const loadMore = () => {
+    if (!nextPos || loadingMore || loading) return;
+    const trimmed = query.trim();
+    if (trimmed) {
+      fetchSearch(trimmed, false, nextPos);
+    } else {
+      fetchFeatured(nextPos);
+    }
+  };
+
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nextPos, loadingMore, loading, query]);
 
   useEffect(() => {
     if (!tenorApiKey) return;
@@ -241,34 +284,41 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
       )}
 
       {results.length > 0 && (
-        <div className={resultsContainerClass}>
-          {results.map((result) => {
-            const previewUrl = result.media_formats?.tinygif?.url || result.media_formats?.gif?.url;
-            const altText = result.content_description || result.title || 'Tenor GIF';
-            if (!previewUrl) return null;
-            return (
-              <button
-                key={result.id}
-                type="button"
-                onClick={() => handleSelect(result)}
-                disabled={selectingId === result.id}
-                className="relative aspect-square overflow-hidden rounded-lg border border-zinc-800 hover:border-indigo-500 transition-colors disabled:opacity-60"
-                title={altText}
-              >
-                <img
-                  src={previewUrl}
-                  alt={altText}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-                {selectingId === result.id && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                    <Loader2 className="animate-spin text-white" size={22} />
-                  </div>
-                )}
-              </button>
-            );
-          })}
+        <div ref={scrollContainerRef} className="mt-4 max-h-[60vh] overflow-y-auto pr-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className={compact ? 'grid grid-cols-3 gap-2' : `grid ${gridCols} gap-2`}>
+            {results.map((result) => {
+              const previewUrl = result.media_formats?.tinygif?.url || result.media_formats?.gif?.url;
+              const altText = result.content_description || result.title || 'Tenor GIF';
+              if (!previewUrl) return null;
+              return (
+                <button
+                  key={result.id}
+                  type="button"
+                  onClick={() => handleSelect(result)}
+                  disabled={selectingId === result.id}
+                  className="relative aspect-square overflow-hidden rounded-lg border border-zinc-800 hover:border-indigo-500 transition-colors disabled:opacity-60"
+                  title={altText}
+                >
+                  <img
+                    src={previewUrl}
+                    alt={altText}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  {selectingId === result.id && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <Loader2 className="animate-spin text-white" size={22} />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {nextPos && (
+            <div ref={loadMoreRef} className="flex justify-center py-4">
+              {loadingMore && <Loader2 className="animate-spin text-zinc-500" size={20} />}
+            </div>
+          )}
         </div>
       )}
 
