@@ -130,7 +130,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   }, [imageSrc]);
 
   // Core Render Logic (Draws to canvasRef based on current composition)
-  const renderCurrentFrameToCanvas = useCallback((targetCanvas?: HTMLCanvasElement) => {
+  const renderCurrentFrameToCanvas = useCallback((targetCanvas?: HTMLCanvasElement, includeOverlay?: boolean) => {
      const finalCanvas = targetCanvas || canvasRef.current;
      if (!finalCanvas || !compositionCanvasRef.current) return null;
      
@@ -170,6 +170,19 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
          for (let i = 0; i < rows; i++) {
              finalCtx.fillText(lines[i], 0, i * cellHeight, finalCanvas.width);
          }
+     }
+
+     if (includeOverlay && config.overlayOpacity > 0) {
+         finalCtx.save();
+         finalCtx.globalAlpha = Math.min(1, Math.max(0, config.overlayOpacity));
+         finalCtx.drawImage(
+            compositionCanvasRef.current,
+            0,
+            0,
+            finalCanvas.width,
+            finalCanvas.height
+         );
+         finalCtx.restore();
      }
      
      return { finalCtx, finalCanvas };
@@ -211,7 +224,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         const renderTarget = mediaRecorderRef.current && videoExportCanvasRef.current
             ? videoExportCanvasRef.current
             : undefined;
-        const renderResult = renderCurrentFrameToCanvas(renderTarget);
+        const renderResult = renderCurrentFrameToCanvas(renderTarget, !renderTarget);
 
         // AI Frame Capture (Once per file load)
         if (renderResult && !frameCapturedRef.current && onFrame) {
@@ -342,7 +355,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             }
 
             // 2. Render ASCII to Canvas
-            const renderResult = renderCurrentFrameToCanvas(exportCanvas);
+            const renderResult = renderCurrentFrameToCanvas(exportCanvas, false);
             
             if (renderResult) {
                 const { finalCtx, finalCanvas } = renderResult;
@@ -544,12 +557,6 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             }}
         >
             <canvas ref={canvasRef} className="w-full h-full block" />
-            <img 
-                src={imageSrc}
-                alt="overlay"
-                className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-100"
-                style={{ opacity: config.overlayOpacity }}
-            />
         </div>
 
         {/* Controls */}
