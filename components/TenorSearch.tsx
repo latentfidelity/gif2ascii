@@ -251,8 +251,8 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
   };
 
   return (
-    <div className={className}>
-      <div className="flex items-center justify-between">
+    <div className={`${className} h-full flex flex-col`}>
+      <div className="flex items-center justify-between shrink-0">
         <p className="text-xs uppercase tracking-widest text-zinc-400">Search Tenor</p>
         <span className="text-[10px] text-zinc-500">Powered by Tenor</span>
       </div>
@@ -263,7 +263,7 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
         </div>
       )}
 
-      <form onSubmit={handleSearch} className="mt-3">
+      <form onSubmit={handleSearch} className="mt-3 shrink-0">
         <input
           type="text"
           placeholder="Search for a GIF..."
@@ -284,7 +284,7 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
       )}
 
       {results.length > 0 && (
-        <div ref={scrollContainerRef} className="mt-4 max-h-[60vh] overflow-y-auto pr-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <div ref={scrollContainerRef} className="mt-4 flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <div className={compact ? 'grid grid-cols-3 gap-2' : `grid ${gridCols} gap-2`}>
             {results.map((result) => {
               const previewUrl = result.media_formats?.tinygif?.url || result.media_formats?.gif?.url;
