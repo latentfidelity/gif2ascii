@@ -21,6 +21,8 @@ interface GifFrame {
   transparentIndex: number;
 }
 
+const EXPORT_CELL_WIDTH = 5;
+
 const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -291,8 +293,12 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
         const compCanvas = compositionCanvasRef.current!;
         const compCtx = compositionCtxRef.current!;
         compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
-        exportCanvas.width = compCanvas.width;
-        exportCanvas.height = compCanvas.height;
+        const exportColumns = Math.max(1, Math.floor(config.resolution));
+        const exportAspect = compCanvas.height / compCanvas.width;
+        const exportRows = Math.max(1, Math.floor(exportColumns * exportAspect * config.fontAspectRatio));
+        const exportCellHeight = EXPORT_CELL_WIDTH / config.fontAspectRatio;
+        exportCanvas.width = Math.max(1, Math.floor(exportColumns * EXPORT_CELL_WIDTH));
+        exportCanvas.height = Math.max(1, Math.floor(exportRows * exportCellHeight));
 
         // Iterate all frames
         for (let i = 0; i < frames.length; i++) {

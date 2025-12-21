@@ -12,7 +12,7 @@ const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   
   // Configuration State
-  const [resolution, setResolution] = useState(120);
+  const [resolution, setResolution] = useState(60);
   const [chars, setChars] = useState(DEFAULT_CHARS);
   const [color, setColor] = useState('#22d3ee'); // Cyan default
   const [invert, setInvert] = useState(false);
