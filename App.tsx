@@ -16,12 +16,12 @@ const App: React.FC = () => {
   // Configuration State
   const [density, setDensity] = useState(60);
   const [chars, setChars] = useState(DEFAULT_CHARS);
-  const [color, setColor] = useState('#22d3ee'); // Cyan default
+  const [color, setColor] = useState('#ffffff'); // White default
   const [invert, setInvert] = useState(false);
   const [bgColor, setBgColor] = useState('#000000');
   const [fontAspectRatio, setFontAspectRatio] = useState(0.55);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
-  const [export2x, setExport2x] = useState(true);
+  const [export2x, setExport2x] = useState(false);
   const [inputSize, setInputSize] = useState<{ width: number; height: number } | null>(null);
   const [outputWidth, setOutputWidth] = useState(0);
   const [outputHeight, setOutputHeight] = useState(0);
@@ -82,7 +82,7 @@ const App: React.FC = () => {
     userAdjustedRef.current = false;
     // Reset defaults on new file
     setChars(DEFAULT_CHARS);
-    setColor('#22d3ee');
+    setColor('#ffffff');
     const img = new Image();
     img.onload = () => {
       const width = img.naturalWidth || img.width;
