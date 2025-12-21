@@ -45,6 +45,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
+  const displayAspectRatio = outputWidth && outputHeight
+    ? outputWidth / outputHeight
+    : aspectRatio;
 
   // Animation State Refs (Mutable for performance in loop)
   const frameIndexRef = useRef(0);
@@ -256,19 +259,31 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     if (!canvas || !container) return;
 
     const updateSize = () => {
+        if (outputWidth && outputHeight) {
+            const width = Math.max(1, Math.floor(outputWidth));
+            const height = Math.max(1, Math.floor(outputHeight));
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+            }
+            return;
+        }
+
         const { clientWidth, clientHeight } = container;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = Math.max(1, Math.floor(clientWidth * dpr));
+        const height = Math.max(1, Math.floor(clientHeight * dpr));
         
-        if (canvas.width !== clientWidth * dpr || canvas.height !== clientHeight * dpr) {
-            canvas.width = clientWidth * dpr;
-            canvas.height = clientHeight * dpr;
+        if (canvas.width !== width || canvas.height !== height) {
+            canvas.width = width;
+            canvas.height = height;
         }
     };
     updateSize(); 
     const observer = new ResizeObserver(updateSize);
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [outputWidth, outputHeight]);
 
   const togglePlay = () => setIsPlaying(!isPlaying);
   
@@ -520,9 +535,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         <div 
             ref={containerRef}
             style={{ 
-                aspectRatio: `${aspectRatio}`,
-                width: aspectRatio > 1 ? '100%' : 'auto',
-                height: aspectRatio <= 1 ? '100%' : 'auto',
+                aspectRatio: `${displayAspectRatio}`,
+                width: displayAspectRatio > 1 ? '100%' : 'auto',
+                height: displayAspectRatio <= 1 ? '100%' : 'auto',
                 maxWidth: '100%',
                 maxHeight: '100%',
                 position: 'relative'
