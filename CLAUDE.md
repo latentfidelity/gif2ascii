@@ -37,7 +37,7 @@ Gif2Ascii is a React-based web app that converts GIF animations to ASCII art ren
 - `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~680 lines)
 - `components/TenorSearch.tsx` - Tenor API integration with debounced search
 - `services/asciiUtils.ts` - Image-to-ASCII conversion algorithms
-- `types.ts` - TypeScript interfaces (AsciiConfig, AppState)
+- `types.ts` - TypeScript interfaces (AsciiConfig, AsciiFrame, AppState)
 
 ### ASCII Conversion Pipeline
 
@@ -57,6 +57,10 @@ In development, Vite proxies `/tenor` to `https://tenor.googleapis.com` to avoid
 
 Uses Tailwind CSS via CDN (in index.html). Fonts: Inter for UI, JetBrains Mono for ASCII rendering.
 
+### Path Alias
+
+`@` is aliased to the project root in `vite.config.ts`.
+
 ### Deployment
 
-Production build uses `/gif2ascii/` base path (configured in `vite.config.ts`).
+Production build uses `/gif2ascii/` base path. GitHub Actions automatically deploys to GitHub Pages on push to `main` (see `.github/workflows/deploy.yml`).
