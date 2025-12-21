@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Settings, RefreshCcw, Layers, Monitor } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
@@ -24,6 +24,7 @@ const App: React.FC = () => {
   const [outputWidth, setOutputWidth] = useState(0);
   const [outputHeight, setOutputHeight] = useState(0);
   const [lockOutputAspect, setLockOutputAspect] = useState(true);
+  const userAdjustedRef = useRef(false);
 
   const inputAspect = inputSize ? (inputSize.height / inputSize.width) : 1;
   const outputWidthPx = outputWidth > 0 ? outputWidth : (inputSize?.width ?? 0);
@@ -49,6 +50,7 @@ const App: React.FC = () => {
   }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity]);
 
   const handleOutputWidthChange = (value: number) => {
+    userAdjustedRef.current = true;
     setOutputWidth(value);
     if (lockOutputAspect && inputSize) {
       setOutputHeight(Math.max(1, Math.round(value * inputAspect)));
@@ -56,16 +58,23 @@ const App: React.FC = () => {
   };
 
   const handleOutputHeightChange = (value: number) => {
+    userAdjustedRef.current = true;
     setOutputHeight(value);
     if (lockOutputAspect && inputSize) {
       setOutputWidth(Math.max(1, Math.round(value / inputAspect)));
     }
   };
 
+  const handleDensityChange = (value: number) => {
+    userAdjustedRef.current = true;
+    setDensity(value);
+  };
+
   const handleFileSelect = (file: File) => {
     const url = URL.createObjectURL(file);
     setFileUrl(url);
     setAppState(AppState.PLAYING);
+    userAdjustedRef.current = false;
     // Reset defaults on new file
     setChars(DEFAULT_CHARS);
     setColor('#22d3ee');
@@ -75,9 +84,11 @@ const App: React.FC = () => {
       const height = img.naturalHeight || img.height;
       if (width > 0 && height > 0) {
         setInputSize({ width, height });
-        setOutputWidth(width);
-        setOutputHeight(height);
-        setDensity(Math.max(10, Math.round(width / DEFAULT_DENSITY_CELL_WIDTH)));
+        if (!userAdjustedRef.current) {
+          setOutputWidth(width);
+          setOutputHeight(height);
+          setDensity(Math.max(10, Math.round(width / DEFAULT_DENSITY_CELL_WIDTH)));
+        }
       }
     };
     img.src = url;
@@ -133,7 +144,7 @@ const App: React.FC = () => {
                 min="10" 
                 max={maxDensity} 
                 value={density} 
-                onChange={(e) => setDensity(Number(e.target.value))}
+                onChange={(e) => handleDensityChange(Number(e.target.value))}
                 className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
             </div>
