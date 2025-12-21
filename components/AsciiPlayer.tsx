@@ -22,6 +22,8 @@ interface GifFrame {
 }
 
 const EXPORT_CELL_WIDTH = 5;
+const VIDEO_EXPORT_SCALE = 2;
+const VIDEO_EXPORT_BITRATE = 8000000;
 
 const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -49,6 +51,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
   const requestRef = useRef<number>();
   const frameCapturedRef = useRef<boolean>(false);
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null); // For resizing
+  const videoExportCanvasRef = useRef<HTMLCanvasElement | null>(null);
   
   // Recording Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -201,7 +204,10 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
         }
 
         // --- RENDER ASCII TO SCREEN ---
-        const renderResult = renderCurrentFrameToCanvas();
+        const renderTarget = mediaRecorderRef.current && videoExportCanvasRef.current
+            ? videoExportCanvasRef.current
+            : undefined;
+        const renderResult = renderCurrentFrameToCanvas(renderTarget);
 
         // AI Frame Capture (Once per file load)
         if (renderResult && !frameCapturedRef.current && onFrame) {
@@ -403,12 +409,21 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
     setIsPlaying(true);
     
     try {
-        const stream = canvasRef.current.captureStream(30); 
+        const exportCanvas = document.createElement('canvas');
+        const compCanvas = compositionCanvasRef.current!;
+        const exportColumns = Math.max(1, Math.floor(config.resolution));
+        const exportAspect = compCanvas.height / compCanvas.width;
+        const exportRows = Math.max(1, Math.floor(exportColumns * exportAspect * config.fontAspectRatio));
+        const exportCellHeight = (EXPORT_CELL_WIDTH * VIDEO_EXPORT_SCALE) / config.fontAspectRatio;
+        exportCanvas.width = Math.max(1, Math.floor(exportColumns * EXPORT_CELL_WIDTH * VIDEO_EXPORT_SCALE));
+        exportCanvas.height = Math.max(1, Math.floor(exportRows * exportCellHeight));
+        videoExportCanvasRef.current = exportCanvas;
+        const stream = exportCanvas.captureStream(30); 
         const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
             ? 'video/webm;codecs=vp9' 
             : 'video/webm';
             
-        const recorder = new MediaRecorder(stream, { mimeType });
+        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: VIDEO_EXPORT_BITRATE });
         mediaRecorderRef.current = recorder;
         recordedChunksRef.current = [];
 
@@ -430,6 +445,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
             
             setIsExporting(false);
             mediaRecorderRef.current = null;
+            videoExportCanvasRef.current = null;
         };
 
         recorder.start();
@@ -437,6 +453,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
     } catch (e) {
         console.error("Export failed", e);
         setIsExporting(false);
+        videoExportCanvasRef.current = null;
         alert("Video export is not supported in this browser.");
     }
   }, [frames, isExporting]);
