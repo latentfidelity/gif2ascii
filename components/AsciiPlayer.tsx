@@ -300,11 +300,10 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
         const compCtx = compositionCtxRef.current!;
         compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
         const exportColumns = Math.max(1, Math.floor(config.resolution));
-        const exportAspect = compCanvas.height / compCanvas.width;
-        const exportRows = Math.max(1, Math.floor(exportColumns * exportAspect * config.fontAspectRatio));
-        const exportCellHeight = EXPORT_CELL_WIDTH / config.fontAspectRatio;
-        exportCanvas.width = Math.max(1, Math.floor(exportColumns * EXPORT_CELL_WIDTH));
-        exportCanvas.height = Math.max(1, Math.floor(exportRows * exportCellHeight));
+        const exportWidth = Math.max(1, Math.floor(exportColumns * EXPORT_CELL_WIDTH));
+        const exportHeight = Math.max(1, Math.round((compCanvas.height / compCanvas.width) * exportWidth));
+        exportCanvas.width = exportWidth;
+        exportCanvas.height = exportHeight;
 
         // Iterate all frames
         for (let i = 0; i < frames.length; i++) {
@@ -412,11 +411,10 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, onFrame }) 
         const exportCanvas = document.createElement('canvas');
         const compCanvas = compositionCanvasRef.current!;
         const exportColumns = Math.max(1, Math.floor(config.resolution));
-        const exportAspect = compCanvas.height / compCanvas.width;
-        const exportRows = Math.max(1, Math.floor(exportColumns * exportAspect * config.fontAspectRatio));
-        const exportCellHeight = (EXPORT_CELL_WIDTH * VIDEO_EXPORT_SCALE) / config.fontAspectRatio;
-        exportCanvas.width = Math.max(1, Math.floor(exportColumns * EXPORT_CELL_WIDTH * VIDEO_EXPORT_SCALE));
-        exportCanvas.height = Math.max(1, Math.floor(exportRows * exportCellHeight));
+        const exportWidth = Math.max(1, Math.floor(exportColumns * EXPORT_CELL_WIDTH * VIDEO_EXPORT_SCALE));
+        const exportHeight = Math.max(1, Math.round((compCanvas.height / compCanvas.width) * exportWidth));
+        exportCanvas.width = exportWidth;
+        exportCanvas.height = exportHeight;
         videoExportCanvasRef.current = exportCanvas;
         const stream = exportCanvas.captureStream(30); 
         const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
