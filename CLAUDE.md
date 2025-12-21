@@ -36,7 +36,7 @@ Gif2Ascii is a React-based web app that converts GIF animations to ASCII art ren
 ### Key Files
 
 - `App.tsx` - Main component with all render settings state
-- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~680 lines)
+- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~660 lines)
 - `components/TenorSearch.tsx` - Tenor API integration with debounced search
 - `services/asciiUtils.ts` - Image-to-ASCII conversion algorithms
 - `services/videoExport.ts` - MP4/WebM video export with WebCodecs

@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [bgColor, setBgColor] = useState('#000000');
   const [fontAspectRatio, setFontAspectRatio] = useState(0.55);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
+  const [export2x, setExport2x] = useState(true);
   const [inputSize, setInputSize] = useState<{ width: number; height: number } | null>(null);
   const [outputWidth, setOutputWidth] = useState(0);
   const [outputHeight, setOutputHeight] = useState(0);
@@ -305,11 +306,22 @@ const App: React.FC = () => {
             {/* Invert */}
             <div className="flex items-center justify-between">
               <span className="text-sm text-zinc-300">Invert Colors</span>
-              <button 
+              <button
                 onClick={() => setInvert(!invert)}
                 className={`w-12 h-6 rounded-full transition-colors relative ${invert ? 'bg-indigo-600' : 'bg-zinc-700'}`}
               >
                 <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${invert ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            {/* Export 2x */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-300">Export 2x Resolution</span>
+              <button
+                onClick={() => setExport2x(!export2x)}
+                className={`w-12 h-6 rounded-full transition-colors relative ${export2x ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+              >
+                <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${export2x ? 'translate-x-6' : 'translate-x-0'}`} />
               </button>
             </div>
 
@@ -354,6 +366,7 @@ const App: React.FC = () => {
                     config={config}
                     outputWidth={outputWidthPx}
                     outputHeight={outputHeightPx}
+                    export2x={export2x}
                   />
                 )}
               </div>

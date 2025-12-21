@@ -11,6 +11,7 @@ interface AsciiPlayerProps {
   config: AsciiConfig;
   outputWidth?: number;
   outputHeight?: number;
+  export2x?: boolean;
   onFrame?: (base64Frame: string) => void;
 }
 
@@ -24,7 +25,6 @@ interface GifFrame {
   transparentIndex: number;
 }
 
-const VIDEO_EXPORT_SCALE = 2;
 const VIDEO_EXPORT_BITRATE = 8000000;
 
 // Floyd-Steinberg dithering for better GIF quality
@@ -120,7 +120,8 @@ const getCenteredCropRect = (width: number, height: number, targetAspect: number
   return { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
 };
 
-const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, onFrame }) => {
+const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, export2x = false, onFrame }) => {
+  const exportScale = export2x ? 2 : 1;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   
@@ -452,14 +453,16 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         const compCtx = compositionCtxRef.current!;
         compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
         const aspect = compCanvas.height / compCanvas.width;
-        const exportWidth = Math.max(
+        const baseWidth = Math.max(
             1,
             Math.floor(outputWidth || ((outputHeight || compCanvas.height) / aspect))
         );
-        const exportHeight = Math.max(
+        const baseHeight = Math.max(
             1,
-            Math.round(outputHeight || (exportWidth * aspect))
+            Math.round(outputHeight || (baseWidth * aspect))
         );
+        const exportWidth = Math.max(1, Math.floor(baseWidth * exportScale));
+        const exportHeight = Math.max(1, Math.floor(baseHeight * exportScale));
         exportCanvas.width = exportWidth;
         exportCanvas.height = exportHeight;
 
@@ -591,8 +594,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             1,
             Math.round(outputHeight || (baseWidth * aspect))
         );
-        const exportWidth = Math.max(1, Math.floor(baseWidth * VIDEO_EXPORT_SCALE));
-        const exportHeight = Math.max(1, Math.floor(baseHeight * VIDEO_EXPORT_SCALE));
+        const exportWidth = Math.max(1, Math.floor(baseWidth * exportScale));
+        const exportHeight = Math.max(1, Math.floor(baseHeight * exportScale));
 
         // Create export canvas
         const exportCanvas = document.createElement('canvas');
@@ -651,7 +654,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             compositionCtxRef.current.clearRect(0, 0, compositionCanvasRef.current.width, compositionCanvasRef.current.height);
         }
     }
-  }, [frames, isExporting, renderCurrentFrameToCanvas]);
+  }, [frames, isExporting, exportScale, renderCurrentFrameToCanvas]);
 
   if (error) {
     return (
