@@ -28,7 +28,7 @@ const VIDEO_EXPORT_BITRATE = 8000000;
 
 const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, onFrame }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   
   // The composition canvas holds the full-resolution pixel data of the current GIF frame
   const compositionCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -45,6 +45,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
+  const [displaySize, setDisplaySize] = useState<{ width: number; height: number }>({ width: 1, height: 1 });
   const displayAspectRatio = aspectRatio;
 
   // Animation State Refs (Mutable for performance in loop)
@@ -266,10 +267,26 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   // Size Observer
   useEffect(() => {
     const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
+    const frame = frameRef.current;
+    if (!canvas || !frame) return;
 
     const updateSize = () => {
+        const { clientWidth, clientHeight } = frame;
+        const ratio = displayAspectRatio > 0 ? displayAspectRatio : 1;
+        let fittedWidth = clientWidth;
+        let fittedHeight = Math.round(clientWidth / ratio);
+        if (fittedHeight > clientHeight) {
+            fittedHeight = clientHeight;
+            fittedWidth = Math.round(clientHeight * ratio);
+        }
+        fittedWidth = Math.max(1, Math.floor(fittedWidth));
+        fittedHeight = Math.max(1, Math.floor(fittedHeight));
+
+        setDisplaySize((prev) => {
+            if (prev.width === fittedWidth && prev.height === fittedHeight) return prev;
+            return { width: fittedWidth, height: fittedHeight };
+        });
+
         if (outputWidth && outputHeight) {
             const width = Math.max(1, Math.floor(outputWidth));
             const height = Math.max(1, Math.floor(outputHeight));
@@ -280,11 +297,10 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             return;
         }
 
-        const { clientWidth, clientHeight } = container;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const width = Math.max(1, Math.floor(clientWidth * dpr));
-        const height = Math.max(1, Math.floor(clientHeight * dpr));
-        
+        const width = Math.max(1, Math.floor(fittedWidth * dpr));
+        const height = Math.max(1, Math.floor(fittedHeight * dpr));
+
         if (canvas.width !== width || canvas.height !== height) {
             canvas.width = width;
             canvas.height = height;
@@ -292,9 +308,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     };
     updateSize(); 
     const observer = new ResizeObserver(updateSize);
-    observer.observe(container);
+    observer.observe(frame);
     return () => observer.disconnect();
-  }, [outputWidth, outputHeight]);
+  }, [outputWidth, outputHeight, displayAspectRatio]);
 
   const togglePlay = () => setIsPlaying(!isPlaying);
   
@@ -543,18 +559,19 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
              </div>
         )}
 
-        <div 
-            ref={containerRef}
-            style={{ 
-                aspectRatio: `${displayAspectRatio}`,
-                width: displayAspectRatio > 1 ? '100%' : 'auto',
-                height: displayAspectRatio <= 1 ? '100%' : 'auto',
-                maxWidth: '100%',
-                maxHeight: '100%',
-                position: 'relative'
-            }}
+        <div
+            ref={frameRef}
+            className="w-full h-full flex items-center justify-center"
         >
-            <canvas ref={canvasRef} className="w-full h-full block" />
+            <div
+                style={{
+                    width: `${displaySize.width}px`,
+                    height: `${displaySize.height}px`,
+                    position: 'relative'
+                }}
+            >
+                <canvas ref={canvasRef} className="w-full h-full block" />
+            </div>
         </div>
 
         {/* Controls */}
