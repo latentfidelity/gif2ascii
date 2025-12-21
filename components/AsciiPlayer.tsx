@@ -92,8 +92,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         if (active) {
             if (loadedFrames.length > 0) {
                 // Setup Composition Canvas (The "Source of Truth" for pixels)
-                const width = loadedFrames[0].dims.width;
-                const height = loadedFrames[0].dims.height;
+                const width = gif.lsd?.width || loadedFrames[0].dims.width;
+                const height = gif.lsd?.height || loadedFrames[0].dims.height;
                 setAspectRatio(width / height);
                 
                 const cCanvas = document.createElement('canvas');
