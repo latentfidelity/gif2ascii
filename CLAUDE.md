@@ -8,6 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Production build**: `npm run build`
 - **Preview production build**: `npm run preview`
 
+## Environment Variables
+
+Create a `.env` file in the project root for optional Tenor GIF search:
+```
+VITE_TENOR_API_KEY=your_tenor_key_here
+```
+
 ## Architecture
 
 Gif2Ascii is a React-based web app that converts GIF animations to ASCII art rendered on canvas, with export capabilities.
@@ -15,8 +22,9 @@ Gif2Ascii is a React-based web app that converts GIF animations to ASCII art ren
 ### Core Flow
 
 1. **FileUpload** accepts GIF/image files via drag-drop or file picker
-2. **App** manages configuration state (density, colors, font aspect ratio, output dimensions)
-3. **AsciiPlayer** handles:
+2. **TenorSearch** provides inline GIF search (requires API key in `.env`)
+3. **App** manages configuration state (density, colors, font aspect ratio, output dimensions)
+4. **AsciiPlayer** handles:
    - GIF parsing via `gifuct-js` (decompresses frames with proper disposal handling)
    - Frame composition on an offscreen canvas (handles GIF disposal types 2/3)
    - ASCII conversion via `services/asciiUtils.ts`
@@ -26,7 +34,8 @@ Gif2Ascii is a React-based web app that converts GIF animations to ASCII art ren
 ### Key Files
 
 - `App.tsx` - Main component with all render settings state
-- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~620 lines)
+- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~680 lines)
+- `components/TenorSearch.tsx` - Tenor API integration with debounced search
 - `services/asciiUtils.ts` - Image-to-ASCII conversion algorithms
 - `types.ts` - TypeScript interfaces (AsciiConfig, AppState)
 
@@ -40,6 +49,14 @@ The character map goes from dark to light (e.g., `@%#*+=-:. `). The `invert` fla
 
 Uses a composition canvas pattern: each frame's patch is drawn onto a persistent canvas, respecting GIF disposal types. The composition canvas represents the current visual state that gets converted to ASCII.
 
+### Tenor Proxy
+
+In development, Vite proxies `/tenor` to `https://tenor.googleapis.com` to avoid CORS issues. See `vite.config.ts`.
+
 ### Styling
 
 Uses Tailwind CSS via CDN (in index.html). Fonts: Inter for UI, JetBrains Mono for ASCII rendering.
+
+### Deployment
+
+Production build uses `/gif2ascii/` base path (configured in `vite.config.ts`).

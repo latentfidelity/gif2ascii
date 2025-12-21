@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Settings, RefreshCcw, Layers, Monitor } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
+import TenorSearch from './components/TenorSearch';
 import { AsciiConfig, AppState } from './types';
 import { DEFAULT_CHARS } from './services/asciiUtils';
 
@@ -25,6 +26,8 @@ const App: React.FC = () => {
   const [outputHeight, setOutputHeight] = useState(0);
   const [lockOutputAspect, setLockOutputAspect] = useState(true);
   const userAdjustedRef = useRef(false);
+  const controlsRef = useRef<HTMLDivElement | null>(null);
+  const [controlsHeight, setControlsHeight] = useState<number | null>(null);
 
   const inputAspect = inputSize ? (inputSize.height / inputSize.width) : 1;
   const outputWidthPx = outputWidth > 0 ? outputWidth : (inputSize?.width ?? 0);
@@ -103,6 +106,26 @@ const App: React.FC = () => {
     setOutputHeight(0);
   };
 
+  useEffect(() => {
+    const element = controlsRef.current;
+    if (!element) return;
+
+    const updateHeight = () => {
+      const nextHeight = Math.round(element.getBoundingClientRect().height);
+      setControlsHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => updateHeight());
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
       {/* Header */}
@@ -122,13 +145,19 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl mx-auto w-full p-6 flex flex-col lg:flex-row gap-8">
+      <main
+        className="flex-1 max-w-7xl mx-auto w-full p-6 flex flex-col lg:flex-row gap-8"
+        style={{ '--controls-height': controlsHeight ? `${controlsHeight}px` : 'auto' } as React.CSSProperties}
+      >
         
         {/* Left Column: Controls */}
         <div className="lg:w-80 flex flex-col gap-6 shrink-0">
           
           {/* Manual Controls */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-6">
+          <div
+            ref={controlsRef}
+            className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-6"
+          >
             <h3 className="text-lg font-bold flex items-center gap-2 text-zinc-300">
               <Settings size={18} />
               Render Settings
@@ -310,25 +339,31 @@ const App: React.FC = () => {
         </div>
 
         {/* Right Column: Viewer */}
-        <div className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 relative flex flex-col min-h-[500px] justify-center items-center">
+        <div className="flex-1 flex flex-col lg:flex-row gap-4">
+          <div className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 relative flex flex-col min-h-[360px] lg:min-h-0 lg:h-[var(--controls-height)] justify-center items-center">
 
-          {appState === AppState.IDLE ? (
-             <div className="w-full h-full flex items-center justify-center">
-                <FileUpload onFileSelect={handleFileSelect} />
-             </div>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              {fileUrl && (
-                <AsciiPlayer
-                  imageSrc={fileUrl}
-                  config={config}
-                  outputWidth={outputWidthPx}
-                  outputHeight={outputHeightPx}
-                />
-              )}
-            </div>
-          )}
+            {appState === AppState.IDLE ? (
+               <div className="w-full h-full flex items-center justify-center">
+                  <FileUpload onFileSelect={handleFileSelect} />
+               </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                {fileUrl && (
+                  <AsciiPlayer
+                    imageSrc={fileUrl}
+                    config={config}
+                    outputWidth={outputWidthPx}
+                    outputHeight={outputHeightPx}
+                  />
+                )}
+              </div>
+            )}
 
+          </div>
+
+          <div className="lg:w-72 shrink-0 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 lg:h-[var(--controls-height)]">
+            <TenorSearch onGifSelect={handleFileSelect} compact />
+          </div>
         </div>
       </main>
     </div>
