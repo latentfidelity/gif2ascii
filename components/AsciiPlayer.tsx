@@ -137,11 +137,15 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
      const finalCtx = finalCanvas.getContext('2d', { alpha: false });
      if (!finalCtx) return null;
 
+     const outputAspectRatio = outputWidth && outputHeight
+        ? outputHeight / outputWidth
+        : undefined;
      const imageData = resizeAndGetImageData(
         compositionCanvasRef.current, 
         config.resolution,
         config.fontAspectRatio,
-        getOffscreenCanvas()
+        getOffscreenCanvas(),
+        outputAspectRatio
      );
 
      if (!imageData) return null;

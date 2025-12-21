@@ -59,7 +59,8 @@ export const resizeAndGetImageData = (
   img: CanvasImageSource, // Accepts HTMLImageElement, HTMLVideoElement, ImageBitmap, HTMLCanvasElement etc.
   targetWidth: number,
   fontAspectRatio: number = 0.55,
-  existingCanvas?: HTMLCanvasElement
+  existingCanvas?: HTMLCanvasElement,
+  overrideAspectRatio?: number
 ): ImageData | null => {
   // Reuse existing canvas if provided to avoid garbage collection stutter
   const canvas = existingCanvas || document.createElement('canvas');
@@ -90,7 +91,9 @@ export const resizeAndGetImageData = (
      return null;
   }
 
-  const aspectRatio = naturalHeight / naturalWidth;
+  const aspectRatio = (overrideAspectRatio && overrideAspectRatio > 0)
+    ? overrideAspectRatio
+    : (naturalHeight / naturalWidth);
   
   // Calculate Target Dimensions
   const finalWidth = Math.floor(Math.max(1, targetWidth));
