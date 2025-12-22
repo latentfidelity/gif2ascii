@@ -499,6 +499,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
       return { width, height };
     });
 
+    // Don't resize canvas while loading - it clears the canvas and we have no content to redraw
+    if (isLoading) return;
+
     let canvasResized = false;
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
@@ -510,7 +513,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     if (canvasResized && isStaticImage && compositionCanvasRef.current) {
       renderCurrentFrameToCanvas(undefined, true);
     }
-  }, [outputWidth, outputHeight, isStaticImage, renderCurrentFrameToCanvas]);
+  }, [outputWidth, outputHeight, isStaticImage, isLoading, renderCurrentFrameToCanvas]);
 
   const togglePlay = () => setIsPlaying(!isPlaying);
   

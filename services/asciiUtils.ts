@@ -26,14 +26,15 @@ export interface AsciiResult {
  */
 const getChar = (gray: number, chars: string, invert: boolean): string => {
   const len = chars.length;
-  // If invert is true, 0 maps to last char, 255 to first
-  const index = Math.floor((gray / 255) * (len - 1));
-  const safeIndex = Math.max(0, Math.min(len - 1, index));
-  
+  // Map gray value to character index with proper distribution
+  // Use (len) instead of (len - 1) to evenly distribute across all characters
+  // Then clamp to valid range to handle edge case of gray = 255
+  const index = Math.min(len - 1, Math.floor((gray / 255) * len));
+
   if (invert) {
-    return chars[len - 1 - safeIndex];
+    return chars[len - 1 - index];
   }
-  return chars[safeIndex];
+  return chars[index];
 };
 
 /**
