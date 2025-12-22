@@ -10,7 +10,6 @@ export interface AsciiConfig {
   brightness: number; // Brightness adjustment (-100 to 100, 0 is neutral)
   contrast: number; // Contrast adjustment (-100 to 100, 0 is neutral)
   saturation: number; // Saturation adjustment (-100 to 100, 0 is neutral)
-  edgeDetection: boolean; // Apply edge detection before ASCII conversion
 }
 
 export interface AsciiFrame {

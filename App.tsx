@@ -25,7 +25,6 @@ const App: React.FC = () => {
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(0);
   const [saturation, setSaturation] = useState(0);
-  const [edgeDetection, setEdgeDetection] = useState(false);
   const [export2x, setExport2x] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -75,9 +74,8 @@ const App: React.FC = () => {
     useSourceColor,
     brightness,
     contrast,
-    saturation,
-    edgeDetection
-  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor, brightness, contrast, saturation, edgeDetection]);
+    saturation
+  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor, brightness, contrast, saturation]);
 
   // Defer expensive config updates to keep sliders responsive
   const deferredConfig = useDeferredValue(config);
@@ -149,7 +147,6 @@ const App: React.FC = () => {
     setBrightness(0);
     setContrast(0);
     setSaturation(0);
-    setEdgeDetection(false);
     setExport2x(false);
     setLockOutputAspect(true);
     if (inputSize) {
@@ -551,16 +548,6 @@ const App: React.FC = () => {
                     />
                   </div>
 
-                  {/* Edge Detection */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Edge Detection</span>
-                    <button
-                      onClick={() => setEdgeDetection(!edgeDetection)}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${edgeDetection ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    >
-                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${edgeDetection ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
                 </div>
               )}
             </div>

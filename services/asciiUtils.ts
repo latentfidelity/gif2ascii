@@ -80,47 +80,6 @@ const applySaturation = (r: number, g: number, b: number, saturation: number): [
 };
 
 /**
- * Applies Sobel edge detection to image data.
- * Returns a new ImageData with edge-detected grayscale values.
- */
-export const applyEdgeDetection = (imageData: ImageData, width: number, height: number): ImageData => {
-  const src = imageData.data;
-  const dst = new Uint8ClampedArray(src.length);
-
-  // Sobel kernels
-  const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
-  const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
-
-  const getGray = (x: number, y: number): number => {
-    if (x < 0 || x >= width || y < 0 || y >= height) return 0;
-    const i = (y * width + x) * 4;
-    return 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
-  };
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let gx = 0, gy = 0;
-      for (let ky = -1; ky <= 1; ky++) {
-        for (let kx = -1; kx <= 1; kx++) {
-          const gray = getGray(x + kx, y + ky);
-          const ki = (ky + 1) * 3 + (kx + 1);
-          gx += gray * sobelX[ki];
-          gy += gray * sobelY[ki];
-        }
-      }
-      const magnitude = Math.min(255, Math.sqrt(gx * gx + gy * gy));
-      const i = (y * width + x) * 4;
-      dst[i] = magnitude;
-      dst[i + 1] = magnitude;
-      dst[i + 2] = magnitude;
-      dst[i + 3] = src[i + 3]; // Preserve alpha
-    }
-  }
-
-  return new ImageData(dst, width, height);
-};
-
-/**
  * Converts ImageData to an ASCII string based on config.
  * When useSourceColor is true, also returns a 2D array of colors per character.
  */

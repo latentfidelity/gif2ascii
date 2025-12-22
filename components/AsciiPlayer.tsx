@@ -3,7 +3,7 @@ import { Play, Pause, RotateCcw, Loader2, Download, Video, FileImage, Copy, File
 import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { AsciiConfig } from '../types';
-import { resizeAndGetImageData, convertToAscii, AsciiResult, applyEdgeDetection } from '../services/asciiUtils';
+import { resizeAndGetImageData, convertToAscii, AsciiResult } from '../services/asciiUtils';
 import { exportVideo, downloadBlob, isMP4ExportSupported } from '../services/videoExport';
 
 // Check if buffer is a GIF by magic bytes
@@ -309,11 +309,6 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
      if (!imageData) return null;
 
-     // Apply edge detection if enabled
-     if (config.edgeDetection) {
-        imageData = applyEdgeDetection(imageData, imageData.width, imageData.height);
-     }
-
      const asciiResult = convertToAscii(
         imageData,
         imageData.width,
@@ -615,10 +610,6 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     );
     if (!imageData) return;
 
-    if (config.edgeDetection) {
-      imageData = applyEdgeDetection(imageData, imageData.width, imageData.height);
-    }
-
     const asciiResult = convertToAscii(imageData, imageData.width, imageData.height, config);
     const lines = asciiResult.text.split('\n').filter(l => l.length > 0);
     const colors = asciiResult.colors;
@@ -674,10 +665,6 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
       outputAspectRatio
     );
     if (!imageData) return;
-
-    if (config.edgeDetection) {
-      imageData = applyEdgeDetection(imageData, imageData.width, imageData.height);
-    }
 
     const asciiResult = convertToAscii(imageData, imageData.width, imageData.height, config);
     const lines = asciiResult.text.split('\n').filter(l => l.length > 0);
