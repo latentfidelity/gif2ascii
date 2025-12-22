@@ -1,10 +1,24 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Loader2, Download, Video, FileImage } from 'lucide-react';
+import { Play, Pause, RotateCcw, Loader2, Download, Video, FileImage, ImageIcon } from 'lucide-react';
 import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { AsciiConfig } from '../types';
-import { resizeAndGetImageData, convertToAscii } from '../services/asciiUtils';
+import { resizeAndGetImageData, convertToAscii, AsciiResult } from '../services/asciiUtils';
 import { exportVideo, downloadBlob, isMP4ExportSupported } from '../services/videoExport';
+
+// Check if buffer is a GIF by magic bytes
+const isGifBuffer = (buffer: ArrayBuffer): boolean => {
+  const arr = new Uint8Array(buffer.slice(0, 6));
+  // GIF87a or GIF89a
+  return (
+    arr[0] === 0x47 && // G
+    arr[1] === 0x49 && // I
+    arr[2] === 0x46 && // F
+    arr[3] === 0x38 && // 8
+    (arr[4] === 0x37 || arr[4] === 0x39) && // 7 or 9
+    arr[5] === 0x61 // a
+  );
+};
 
 interface AsciiPlayerProps {
   imageSrc: string;
@@ -137,6 +151,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [isStaticImage, setIsStaticImage] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
@@ -159,63 +174,105 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     return offscreenCanvasRef.current;
   };
 
-  // 1. Fetch and Parse GIF
+  // 1. Fetch and Parse Image (GIF or Static)
   useEffect(() => {
     let active = true;
     setIsLoading(true);
     setError(null);
     setFrames([]);
+    setIsStaticImage(false);
     frameIndexRef.current = 0;
     frameCapturedRef.current = false;
-    
+
     // Cleanup previous composition
     compositionCanvasRef.current = null;
 
-    const loadGif = async () => {
+    const loadImage = async () => {
       try {
         const resp = await fetch(imageSrc);
         if (!resp.ok) throw new Error("Failed to fetch image");
         const buffer = await resp.arrayBuffer();
-        
-        // Parse
-        const gif = parseGIF(buffer);
-        const loadedFrames = decompressFrames(gif, true) as GifFrame[];
 
-        if (active) {
-            if (loadedFrames.length > 0) {
-                // Setup Composition Canvas (The "Source of Truth" for pixels)
-                const width = gif.lsd?.width || loadedFrames[0].dims.width;
-                const height = gif.lsd?.height || loadedFrames[0].dims.height;
-                setAspectRatio(width / height);
-                
-                const cCanvas = document.createElement('canvas');
-                cCanvas.width = width;
-                cCanvas.height = height;
-                compositionCanvasRef.current = cCanvas;
-                compositionCtxRef.current = cCanvas.getContext('2d', { willReadFrequently: true });
-                
-                // Setup Patch Helper Canvas
-                const pCanvas = document.createElement('canvas');
-                // Size will be set dynamically per frame patch
-                patchCanvasRef.current = pCanvas;
-                patchCtxRef.current = pCanvas.getContext('2d', { willReadFrequently: true });
+        if (isGifBuffer(buffer)) {
+          // Parse as GIF
+          const gif = parseGIF(buffer);
+          const loadedFrames = decompressFrames(gif, true) as GifFrame[];
 
-                setFrames(loadedFrames);
-            } else {
-                throw new Error("No frames found in GIF");
+          if (active) {
+              if (loadedFrames.length > 0) {
+                  // Setup Composition Canvas (The "Source of Truth" for pixels)
+                  const width = gif.lsd?.width || loadedFrames[0].dims.width;
+                  const height = gif.lsd?.height || loadedFrames[0].dims.height;
+                  setAspectRatio(width / height);
+
+                  const cCanvas = document.createElement('canvas');
+                  cCanvas.width = width;
+                  cCanvas.height = height;
+                  compositionCanvasRef.current = cCanvas;
+                  compositionCtxRef.current = cCanvas.getContext('2d', { willReadFrequently: true });
+
+                  // Setup Patch Helper Canvas
+                  const pCanvas = document.createElement('canvas');
+                  // Size will be set dynamically per frame patch
+                  patchCanvasRef.current = pCanvas;
+                  patchCtxRef.current = pCanvas.getContext('2d', { willReadFrequently: true });
+
+                  setFrames(loadedFrames);
+                  setIsStaticImage(false);
+              } else {
+                  throw new Error("No frames found in GIF");
+              }
+              setIsLoading(false);
+          }
+        } else {
+          // Load as static image (PNG, JPEG, WebP)
+          const blob = new Blob([buffer]);
+          const img = new Image();
+          img.src = URL.createObjectURL(blob);
+
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("Failed to load image"));
+          });
+
+          if (active) {
+            const width = img.naturalWidth;
+            const height = img.naturalHeight;
+            setAspectRatio(width / height);
+
+            // Setup Composition Canvas with the static image
+            const cCanvas = document.createElement('canvas');
+            cCanvas.width = width;
+            cCanvas.height = height;
+            compositionCanvasRef.current = cCanvas;
+            const ctx = cCanvas.getContext('2d', { willReadFrequently: true });
+            compositionCtxRef.current = ctx;
+
+            // Draw the image to the composition canvas
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
             }
+
+            // Cleanup blob URL
+            URL.revokeObjectURL(img.src);
+
+            // For static images, we don't use frames array
+            setFrames([]);
+            setIsStaticImage(true);
+            setIsPlaying(false); // No animation for static images
             setIsLoading(false);
+          }
         }
       } catch (err: any) {
         if (active) {
-            console.error("GIF Parse Error:", err);
-            setError("Could not parse GIF. Please try another file.");
+            console.error("Image Parse Error:", err);
+            setError("Could not parse image. Please try another file.");
             setIsLoading(false);
         }
       }
     };
 
-    loadGif();
+    loadImage();
     return () => { active = false; };
   }, [imageSrc]);
 
@@ -239,7 +296,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
           )
         : null;
      const imageData = resizeAndGetImageData(
-        compositionCanvasRef.current, 
+        compositionCanvasRef.current,
         config.resolution,
         config.fontAspectRatio,
         getOffscreenCanvas(),
@@ -248,12 +305,14 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
      if (!imageData) return null;
 
-     const asciiString = convertToAscii(
-        imageData, 
-        imageData.width, 
-        imageData.height, 
+     const asciiResult = convertToAscii(
+        imageData,
+        imageData.width,
+        imageData.height,
         config
      );
+     const asciiString = asciiResult.text;
+     const colors = asciiResult.colors;
 
      // Clear and Draw Text
      if (hasTransparentBg) {
@@ -262,19 +321,39 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
          finalCtx.fillStyle = config.backgroundColor;
          finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
      }
-     
-     finalCtx.fillStyle = config.color;
+
      finalCtx.textBaseline = 'top';
 
      const lines = asciiString.split('\n');
      if (lines.length > 0 && lines[lines.length-1] === '') lines.pop();
-     
+
      const rows = lines.length;
      if (rows > 0) {
          const cellHeight = finalCanvas.height / rows;
-         finalCtx.font = `bold ${cellHeight * 1.05}px "JetBrains Mono", monospace`; 
-         for (let i = 0; i < rows; i++) {
-             finalCtx.fillText(lines[i], 0, i * cellHeight, finalCanvas.width);
+         const cols = lines[0]?.length || 1;
+         const cellWidth = finalCanvas.width / cols;
+         finalCtx.font = `bold ${cellHeight * 1.05}px "JetBrains Mono", monospace`;
+
+         if (colors && config.useSourceColor) {
+             // Per-character color rendering
+             for (let y = 0; y < rows; y++) {
+                 const line = lines[y];
+                 const rowColors = colors[y] || [];
+                 for (let x = 0; x < line.length; x++) {
+                     const char = line[x];
+                     const charColor = rowColors[x];
+                     if (charColor && charColor !== 'transparent' && char !== ' ') {
+                         finalCtx.fillStyle = charColor;
+                         finalCtx.fillText(char, x * cellWidth, y * cellHeight);
+                     }
+                 }
+             }
+         } else {
+             // Single color rendering (original)
+             finalCtx.fillStyle = config.color;
+             for (let i = 0; i < rows; i++) {
+                 finalCtx.fillText(lines[i], 0, i * cellHeight, finalCanvas.width);
+             }
          }
      }
 
@@ -309,9 +388,27 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   }, [config]);
 
 
-  // 2. Render Loop (Playback)
+  // 2a. Render static image when config or canvas size changes
+  useEffect(() => {
+    if (!isStaticImage || isLoading || !compositionCanvasRef.current || !canvasRef.current) return;
+
+    // Render the static image with current config
+    const result = renderCurrentFrameToCanvas(undefined, true);
+
+    // Capture frame for AI if not already captured
+    if (result && !frameCapturedRef.current && onFrame) {
+      try {
+        const base64 = result.finalCanvas.toDataURL('image/png').split(',')[1];
+        onFrame(base64);
+        frameCapturedRef.current = true;
+      } catch(e) {}
+    }
+  }, [isStaticImage, isLoading, config, displaySize, renderCurrentFrameToCanvas, onFrame]);
+
+  // 2b. Render Loop (Playback for animated GIFs)
   const renderLoop = useCallback((timestamp: number) => {
-    if (!isPlaying || isExporting || !canvasRef.current || frames.length === 0 || !compositionCtxRef.current || !compositionCanvasRef.current) {
+    // Skip render loop for static images - they're rendered in the effect above
+    if (isStaticImage || !isPlaying || isExporting || !canvasRef.current || frames.length === 0 || !compositionCtxRef.current || !compositionCanvasRef.current) {
       requestRef.current = requestAnimationFrame(renderLoop);
       return;
     }
@@ -364,7 +461,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     }
 
     requestRef.current = requestAnimationFrame(renderLoop);
-  }, [isPlaying, isExporting, frames, config, onFrame, renderCurrentFrameToCanvas]);
+  }, [isStaticImage, isPlaying, isExporting, frames, config, onFrame, renderCurrentFrameToCanvas]);
 
   // Start/Stop Loop
   useEffect(() => {
@@ -397,30 +494,38 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             return { width: fittedWidth, height: fittedHeight };
         });
 
+        let canvasResized = false;
+
         if (outputWidth && outputHeight) {
             const width = Math.max(1, Math.floor(outputWidth));
             const height = Math.max(1, Math.floor(outputHeight));
             if (canvas.width !== width || canvas.height !== height) {
                 canvas.width = width;
                 canvas.height = height;
+                canvasResized = true;
             }
-            return;
+        } else {
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const width = Math.max(1, Math.floor(fittedWidth * dpr));
+            const height = Math.max(1, Math.floor(fittedHeight * dpr));
+
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+                canvasResized = true;
+            }
         }
 
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const width = Math.max(1, Math.floor(fittedWidth * dpr));
-        const height = Math.max(1, Math.floor(fittedHeight * dpr));
-
-        if (canvas.width !== width || canvas.height !== height) {
-            canvas.width = width;
-            canvas.height = height;
+        // For static images, render immediately after resize to prevent flicker
+        if (canvasResized && isStaticImage && compositionCanvasRef.current) {
+            renderCurrentFrameToCanvas(undefined, true);
         }
     };
-    updateSize(); 
+    updateSize();
     const observer = new ResizeObserver(updateSize);
     observer.observe(frame);
     return () => observer.disconnect();
-  }, [outputWidth, outputHeight, displayAspectRatio]);
+  }, [outputWidth, outputHeight, displayAspectRatio, isStaticImage, renderCurrentFrameToCanvas]);
 
   const togglePlay = () => setIsPlaying(!isPlaying);
   
@@ -431,6 +536,42 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     }
     setIsPlaying(true);
   };
+
+  // --- PNG EXPORT (for static images) ---
+  const handleExportPng = useCallback(() => {
+    if (!canvasRef.current || !compositionCanvasRef.current) return;
+
+    // Create export canvas at appropriate size
+    const compCanvas = compositionCanvasRef.current;
+    const aspect = compCanvas.height / compCanvas.width;
+    const baseWidth = Math.max(
+        1,
+        Math.floor(outputWidth || ((outputHeight || compCanvas.height) / aspect))
+    );
+    const baseHeight = Math.max(
+        1,
+        Math.round(outputHeight || (baseWidth * aspect))
+    );
+    const exportWidth = Math.max(1, Math.floor(baseWidth * exportScale));
+    const exportHeight = Math.max(1, Math.floor(baseHeight * exportScale));
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = exportWidth;
+    exportCanvas.height = exportHeight;
+
+    // Render to export canvas
+    renderCurrentFrameToCanvas(exportCanvas, false);
+
+    // Download
+    const url = exportCanvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `ascii-render-${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, [outputWidth, outputHeight, exportScale, renderCurrentFrameToCanvas]);
 
   // --- EXPORT LOGIC (DECOUPLED) ---
   
@@ -680,7 +821,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
           {isLoading && (
               <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm text-zinc-400">
                   <Loader2 className="animate-spin mb-2" size={32} />
-                  <p className="text-xs uppercase tracking-widest">Parsing GIF...</p>
+                  <p className="text-xs uppercase tracking-widest">Loading image...</p>
               </div>
           )}
 
@@ -705,45 +846,61 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
           {/* Controls */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-2 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl">
-               <button
-                  onClick={togglePlay}
-                  disabled={isExporting}
-                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
-                  title={isPlaying ? "Pause" : "Play"}
-               >
-                  {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-               </button>
+               {/* Animation controls - only for animated GIFs */}
+               {!isStaticImage && (
+                 <>
+                   <button
+                      onClick={togglePlay}
+                      disabled={isExporting}
+                      className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
+                      title={isPlaying ? "Pause" : "Play"}
+                   >
+                      {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                   </button>
 
-               <div className="w-px h-4 bg-zinc-700" />
+                   <div className="w-px h-4 bg-zinc-700" />
 
-               <button
-                  onClick={restart}
-                  disabled={isExporting}
-                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
-                  title="Restart"
-               >
-                  <RotateCcw size={18} />
-               </button>
+                   <button
+                      onClick={restart}
+                      disabled={isExporting}
+                      className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
+                      title="Restart"
+                   >
+                      <RotateCcw size={18} />
+                   </button>
 
-               <div className="w-px h-4 bg-zinc-700" />
+                   <div className="w-px h-4 bg-zinc-700" />
 
-               <button
-                  onClick={handleExportVideo}
-                  disabled={isExporting}
-                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
-                  title="Export Video"
-               >
-                  <Video size={18} />
-               </button>
+                   <button
+                      onClick={handleExportVideo}
+                      disabled={isExporting}
+                      className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                      title="Export Video"
+                   >
+                      <Video size={18} />
+                   </button>
 
-               <button
-                  onClick={handleExportGif}
-                  disabled={isExporting}
-                  className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
-                  title="Export GIF"
-               >
-                  <FileImage size={18} />
-               </button>
+                   <button
+                      onClick={handleExportGif}
+                      disabled={isExporting}
+                      className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                      title="Export GIF"
+                   >
+                      <FileImage size={18} />
+                   </button>
+                 </>
+               )}
+
+               {/* PNG export - for static images */}
+               {isStaticImage && (
+                 <button
+                    onClick={handleExportPng}
+                    className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors"
+                    title="Export PNG"
+                 >
+                    <Download size={18} />
+                 </button>
+               )}
           </div>
       </div>
     </div>

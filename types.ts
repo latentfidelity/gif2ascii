@@ -6,6 +6,7 @@ export interface AsciiConfig {
   invert: boolean;
   fontAspectRatio: number; // Aspect ratio of the font character (width/height), typically ~0.55
   overlayOpacity: number; // Opacity of the original image behind the ASCII (0-1)
+  useSourceColor: boolean; // Use original image colors for ASCII characters
 }
 
 export interface AsciiFrame {

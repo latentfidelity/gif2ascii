@@ -3,12 +3,18 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "bin": {
+    "gif2ascii": "./cli/dist/index.js"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:cli": "esbuild cli/index.ts --bundle --platform=node --format=esm --outfile=cli/dist/index.js --external:@napi-rs/canvas --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
+    "commander": "^13.1.0",
     "gifenc": "1.0.3",
     "gifuct-js": "2.1.2",
     "lucide-react": "^0.562.0",
@@ -19,6 +25,7 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "esbuild": "^0.24.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

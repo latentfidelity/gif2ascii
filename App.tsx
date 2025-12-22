@@ -21,6 +21,7 @@ const App: React.FC = () => {
   const [bgColor, setBgColor] = useState('#000000');
   const [fontAspectRatio, setFontAspectRatio] = useState(0.55);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
+  const [useSourceColor, setUseSourceColor] = useState(false);
   const [export2x, setExport2x] = useState(false);
   const [inputSize, setInputSize] = useState<{ width: number; height: number } | null>(null);
   const [outputWidth, setOutputWidth] = useState(0);
@@ -51,8 +52,9 @@ const App: React.FC = () => {
     backgroundColor: bgColor,
     invert: !invert,
     fontAspectRatio,
-    overlayOpacity
-  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity]);
+    overlayOpacity,
+    useSourceColor
+  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor]);
 
   // Defer expensive config updates to keep sliders responsive
   const deferredConfig = useDeferredValue(config);
@@ -270,15 +272,27 @@ const App: React.FC = () => {
               />
             </div>
 
+            {/* Source Color Toggle */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-300">Source Color</span>
+              <button
+                onClick={() => setUseSourceColor(!useSourceColor)}
+                className={`w-12 h-6 rounded-full transition-colors relative ${useSourceColor ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+              >
+                <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${useSourceColor ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
             {/* Colors */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid grid-cols-2 gap-4 transition-opacity ${useSourceColor ? 'opacity-40 pointer-events-none' : ''}`}>
               <div className="space-y-2">
                 <label className="text-xs text-zinc-400 block">Text Color</label>
                 <div className="flex items-center gap-2 bg-zinc-800 p-2 rounded-lg border border-zinc-700">
-                   <input 
-                    type="color" 
+                   <input
+                    type="color"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
+                    disabled={useSourceColor}
                     className="w-6 h-6 rounded bg-transparent cursor-pointer border-none p-0"
                    />
                    <span className="text-xs font-mono text-zinc-400">{color}</span>
@@ -287,19 +301,20 @@ const App: React.FC = () => {
               <div className="space-y-2">
                 <label className="text-xs text-zinc-400 block">Bg Color</label>
                 <div className="flex items-center gap-2 bg-zinc-800 p-2 rounded-lg border border-zinc-700">
-                   <input 
-                    type="color" 
+                   <input
+                    type="color"
                     value={bgIsTransparent ? '#000000' : bgColor}
                     onChange={(e) => setBgColor(e.target.value)}
-                    disabled={bgIsTransparent}
+                    disabled={bgIsTransparent || useSourceColor}
                     className="w-6 h-6 rounded bg-transparent cursor-pointer border-none p-0"
                    />
                    <span className="text-xs font-mono text-zinc-400">{bgIsTransparent ? 'transparent' : bgColor}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-zinc-400">Transparent</span>
-                  <button 
+                  <button
                     onClick={() => setBgColor(bgIsTransparent ? '#000000' : 'transparent')}
+                    disabled={useSourceColor}
                     className={`w-12 h-6 rounded-full transition-colors relative ${bgIsTransparent ? 'bg-indigo-600' : 'bg-zinc-700'}`}
                   >
                     <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${bgIsTransparent ? 'translate-x-6' : 'translate-x-0'}`} />

@@ -68,7 +68,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
           <Upload size={32} />
         </div>
         
-        <h3 className="text-xl font-bold text-zinc-100 mb-2">Upload a GIF</h3>
+        <h3 className="text-xl font-bold text-zinc-100 mb-2">Upload an Image</h3>
         <p className="text-zinc-400 text-sm mb-6">Drag and drop or click to select</p>
       </label>
       

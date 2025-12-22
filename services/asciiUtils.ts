@@ -3,6 +3,11 @@ import { AsciiConfig } from '../types';
 export const DEFAULT_CHARS = "@%#*+=-:. ";
 export const DENSE_CHARS = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
 
+export interface AsciiResult {
+  text: string;
+  colors: string[][] | null; // 2D array of hex colors per character, null if not using source colors
+}
+
 /**
  * Maps a grayscale value (0-255) to a character from the set.
  */
@@ -19,20 +24,30 @@ const getChar = (gray: number, chars: string, invert: boolean): string => {
 };
 
 /**
+ * Converts RGB to hex color string.
+ */
+const rgbToHex = (r: number, g: number, b: number): string => {
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+};
+
+/**
  * Converts ImageData to an ASCII string based on config.
+ * When useSourceColor is true, also returns a 2D array of colors per character.
  */
 export const convertToAscii = (
-  imageData: ImageData, 
-  width: number, 
-  height: number, 
+  imageData: ImageData,
+  width: number,
+  height: number,
   config: AsciiConfig
-): string => {
+): AsciiResult => {
   const { data } = imageData;
   // Ensure we have at least one character to map to
   const chars = (config.chars && config.chars.length > 0) ? config.chars : DEFAULT_CHARS;
   let asciiStr = "";
+  const colors: string[][] | null = config.useSourceColor ? [] : null;
 
   for (let y = 0; y < height; y++) {
+    const rowColors: string[] = [];
     for (let x = 0; x < width; x++) {
       const offset = (y * width + x) * 4;
       const r = data[offset];
@@ -42,17 +57,20 @@ export const convertToAscii = (
 
       if (a === 0) {
         asciiStr += " "; // Transparent maps to space
+        if (colors) rowColors.push('transparent');
       } else {
         // Standard luminance formula
         const gray = 0.299 * r + 0.587 * g + 0.114 * b;
         asciiStr += getChar(gray, chars, config.invert);
+        if (colors) rowColors.push(rgbToHex(r, g, b));
       }
     }
+    if (colors) colors.push(rowColors);
     // Add newline at the end of each row
     asciiStr += "\n";
   }
 
-  return asciiStr;
+  return { text: asciiStr, colors };
 };
 
 export const resizeAndGetImageData = (

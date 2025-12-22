@@ -4,9 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Run Commands
 
+### Web App
 - **Development server**: `npm run dev` (runs on port 3000)
 - **Production build**: `npm run build`
 - **Preview production build**: `npm run preview`
+
+### CLI Tool
+- **Build CLI**: `npm run build:cli`
+- **Link for global usage**: `npm link` (after building)
+- **Run directly**: `node cli/dist/index.js <input> [options]`
+- **Run after linking**: `gif2ascii <input> [options]`
 
 No linting or test scripts are configured.
 
@@ -19,7 +26,7 @@ VITE_TENOR_API_KEY=your_tenor_key_here
 
 ## Architecture
 
-Gif2Ascii is a React-based web app that converts GIF animations to ASCII art rendered on canvas, with export capabilities.
+Gif2Ascii is a React-based web app and Node.js CLI tool that converts GIF animations to ASCII art, with export capabilities.
 
 ### Core Flow
 
@@ -43,6 +50,7 @@ Source files are in the project root (no `src/` directory):
 - `services/asciiUtils.ts` - Image-to-ASCII conversion algorithms
 - `services/videoExport.ts` - MP4/WebM video export with WebCodecs
 - `types.ts` - TypeScript interfaces (AsciiConfig, AsciiFrame, AppState)
+- `cli/index.ts` - CLI tool source (bundled with esbuild to `cli/dist/index.js`)
 
 ### ASCII Conversion Pipeline
 
@@ -52,7 +60,7 @@ Two character sets are available in `asciiUtils.ts`:
 - `DEFAULT_CHARS`: `@%#*+=-:. ` (10 chars, used for normal density)
 - `DENSE_CHARS`: 70 chars from `$` to space (used for high density mode)
 
-Characters map dark to light. The `invert` flag reverses this mapping.
+Characters map dark to light. The `invert` flag reverses this mapping. The `useSourceColor` option preserves original pixel colors for each ASCII character.
 
 ### GIF Frame Handling
 
@@ -81,3 +89,21 @@ Uses Tailwind CSS via CDN (in index.html). Fonts: Inter for UI, JetBrains Mono f
 ### Deployment
 
 Production build uses `/gif2ascii/` base path. GitHub Actions automatically deploys to GitHub Pages on push to `main` (see `.github/workflows/deploy.yml`).
+
+## CLI Tool (Experimental)
+
+The CLI (`cli/index.ts`) is a test/experimental feature for terminal-based ASCII art playback. It provides two rendering modes:
+
+### ASCII Mode (default)
+Renders colored ASCII characters using ANSI escape codes. Uses alternate screen buffer to prevent scrollback pollution. Auto-scales to fit terminal dimensions unless `--no-fit` is specified.
+
+### Sixel Mode
+Renders actual pixel graphics for terminals that support Sixel (iTerm2, Windows Terminal, mlterm, foot). First renders ASCII art to a canvas, then encodes to Sixel format.
+
+### CLI Key Features
+- Accepts local files or URLs
+- ANSI true color (24-bit) support with `--source-color`
+- Export to bash scripts (`.sh`), PowerShell scripts (`.ps1`), ANSI files (`.ans`), or plain text (`.txt`)
+- Uses `@napi-rs/canvas` for Node.js canvas operations
+- Uses `commander` for argument parsing
+- Bundled with esbuild (ESM format, external `@napi-rs/canvas`)
