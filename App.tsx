@@ -39,8 +39,8 @@ const App: React.FC = () => {
 
   // Section collapse state
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    output: true,
-    colors: true,
+    output: false,
+    colors: false,
     adjustments: false,
     characters: false,
     export: false,
