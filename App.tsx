@@ -448,11 +448,10 @@ const App: React.FC = () => {
                   </div>
 
                   {/* Transparent */}
-                  <div className={`flex items-center justify-between transition-opacity ${useSourceColor ? 'opacity-40 pointer-events-none' : ''}`}>
+                  <div className="flex items-center justify-between">
                     <span className="text-sm text-zinc-300">Transparent Bg</span>
                     <button
                       onClick={() => setBgColor(bgIsTransparent ? '#000000' : 'transparent')}
-                      disabled={useSourceColor}
                       className={`w-12 h-6 rounded-full transition-colors relative ${bgIsTransparent ? 'bg-indigo-600' : 'bg-zinc-700'}`}
                     >
                       <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${bgIsTransparent ? 'translate-x-6' : 'translate-x-0'}`} />
