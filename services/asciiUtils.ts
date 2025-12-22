@@ -13,8 +13,6 @@ export const SHADES_CHARS = "█▓▒░· ";
 export const CROSSES_CHARS = "╬╫╪┼+· ";
 export const STARS_CHARS = "★☆✦✧· ";
 export const SLASHES_CHARS = "#/\\|-:. ";
-export const MINIMAL_CHARS = "█ ";
-
 export const CHAR_PRESETS: { name: string; chars: string }[] = [
   { name: "Standard", chars: DEFAULT_CHARS },
   { name: "Dense", chars: DENSE_CHARS },
@@ -29,7 +27,6 @@ export const CHAR_PRESETS: { name: string; chars: string }[] = [
   { name: "Crosses", chars: CROSSES_CHARS },
   { name: "Stars", chars: STARS_CHARS },
   { name: "Slashes", chars: SLASHES_CHARS },
-  { name: "Minimal", chars: MINIMAL_CHARS },
 ];
 
 export interface AsciiResult {

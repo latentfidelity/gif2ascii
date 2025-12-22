@@ -64,6 +64,13 @@ Character presets in `asciiUtils.ts`:
 - **Simple**: `@#*+:. ` (minimal set)
 - **Binary**: `10` (digits only)
 - **Braille**: Unicode braille patterns
+- **Numeric**: `0123456789`
+- **Katakana**: Japanese katakana characters
+- **Dots**: `●◉◎○· ` (circle variants)
+- **Shades**: `█▓▒░· ` (block shading)
+- **Crosses**: `╬╫╪┼+· ` (box drawing)
+- **Stars**: `★☆✦✧· ` (star variants)
+- **Slashes**: `#/\|-:. ` (diagonal/linear)
 
 Characters map dark to light. The `invert` flag reverses this mapping. The `useSourceColor` option preserves original pixel colors for each ASCII character.
 
