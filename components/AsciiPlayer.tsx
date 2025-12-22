@@ -184,6 +184,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     setError(null);
     setFrames([]);
     setIsStaticImage(false);
+    setIsPlaying(true); // Reset to playing when loading new file
     frameIndexRef.current = 0;
     frameCapturedRef.current = false;
 
@@ -415,6 +416,16 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
       } catch(e) {}
     }
   }, [isStaticImage, isLoading, config, displaySize, renderCurrentFrameToCanvas, onFrame]);
+
+  // 2a-2. Re-render paused animated GIF when config changes
+  useEffect(() => {
+    // Only for animated GIFs that are paused
+    if (isStaticImage || isPlaying || isLoading || frames.length === 0) return;
+    if (!compositionCanvasRef.current || !canvasRef.current) return;
+
+    // Re-render the current frame with updated config
+    renderCurrentFrameToCanvas(undefined, true);
+  }, [isStaticImage, isPlaying, isLoading, frames.length, config, displaySize, renderCurrentFrameToCanvas]);
 
   // 2b. Render Loop (Playback for animated GIFs)
   const renderLoop = useCallback((timestamp: number) => {
