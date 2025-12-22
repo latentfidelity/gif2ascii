@@ -2,6 +2,19 @@ import { AsciiConfig } from '../types';
 
 export const DEFAULT_CHARS = "@%#*+=-:. ";
 export const DENSE_CHARS = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
+export const BLOCKS_CHARS = "█▓▒░ ";
+export const SIMPLE_CHARS = "@#*+:. ";
+export const BINARY_CHARS = "@ ";
+export const BRAILLE_CHARS = "⣿⣷⣯⣟⡿⢿⣻⣽⣾⣶⣦⣴⣤⣄⣀⡀ ";
+
+export const CHAR_PRESETS: { name: string; chars: string }[] = [
+  { name: "Standard", chars: DEFAULT_CHARS },
+  { name: "Dense", chars: DENSE_CHARS },
+  { name: "Blocks", chars: BLOCKS_CHARS },
+  { name: "Simple", chars: SIMPLE_CHARS },
+  { name: "Binary", chars: BINARY_CHARS },
+  { name: "Braille", chars: BRAILLE_CHARS },
+];
 
 export interface AsciiResult {
   text: string;
@@ -28,6 +41,82 @@ const getChar = (gray: number, chars: string, invert: boolean): string => {
  */
 const rgbToHex = (r: number, g: number, b: number): string => {
   return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+};
+
+/**
+ * Applies brightness adjustment to a value.
+ * brightness: -100 to 100, where 0 is neutral
+ */
+const applyBrightness = (value: number, brightness: number): number => {
+  // Convert brightness from -100..100 to -255..255 range
+  const adjustment = (brightness / 100) * 255;
+  return Math.max(0, Math.min(255, value + adjustment));
+};
+
+/**
+ * Applies contrast adjustment to a value.
+ * contrast: -100 to 100, where 0 is neutral
+ */
+const applyContrast = (value: number, contrast: number): number => {
+  // Convert contrast to a factor (0.5 to 2.0 range for -100 to 100)
+  const factor = (contrast + 100) / 100;
+  // Apply contrast around midpoint (128)
+  return Math.max(0, Math.min(255, (value - 128) * factor + 128));
+};
+
+/**
+ * Applies saturation adjustment to RGB values.
+ * saturation: -100 to 100, where 0 is neutral, -100 is grayscale
+ */
+const applySaturation = (r: number, g: number, b: number, saturation: number): [number, number, number] => {
+  const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+  const factor = (saturation + 100) / 100;
+  return [
+    Math.max(0, Math.min(255, gray + (r - gray) * factor)),
+    Math.max(0, Math.min(255, gray + (g - gray) * factor)),
+    Math.max(0, Math.min(255, gray + (b - gray) * factor))
+  ];
+};
+
+/**
+ * Applies Sobel edge detection to image data.
+ * Returns a new ImageData with edge-detected grayscale values.
+ */
+export const applyEdgeDetection = (imageData: ImageData, width: number, height: number): ImageData => {
+  const src = imageData.data;
+  const dst = new Uint8ClampedArray(src.length);
+
+  // Sobel kernels
+  const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+  const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+
+  const getGray = (x: number, y: number): number => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return 0;
+    const i = (y * width + x) * 4;
+    return 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+  };
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let gx = 0, gy = 0;
+      for (let ky = -1; ky <= 1; ky++) {
+        for (let kx = -1; kx <= 1; kx++) {
+          const gray = getGray(x + kx, y + ky);
+          const ki = (ky + 1) * 3 + (kx + 1);
+          gx += gray * sobelX[ki];
+          gy += gray * sobelY[ki];
+        }
+      }
+      const magnitude = Math.min(255, Math.sqrt(gx * gx + gy * gy));
+      const i = (y * width + x) * 4;
+      dst[i] = magnitude;
+      dst[i + 1] = magnitude;
+      dst[i + 2] = magnitude;
+      dst[i + 3] = src[i + 3]; // Preserve alpha
+    }
+  }
+
+  return new ImageData(dst, width, height);
 };
 
 /**
@@ -59,10 +148,28 @@ export const convertToAscii = (
         asciiStr += " "; // Transparent maps to space
         if (colors) rowColors.push('transparent');
       } else {
-        // Standard luminance formula
-        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        // Apply adjustments
+        const brightness = config.brightness || 0;
+        const contrast = config.contrast || 0;
+        const saturation = config.saturation || 0;
+
+        // Apply saturation first (works on original colors)
+        let [adjR, adjG, adjB] = applySaturation(r, g, b, saturation);
+
+        // Apply brightness
+        adjR = applyBrightness(adjR, brightness);
+        adjG = applyBrightness(adjG, brightness);
+        adjB = applyBrightness(adjB, brightness);
+
+        // Apply contrast
+        adjR = applyContrast(adjR, contrast);
+        adjG = applyContrast(adjG, contrast);
+        adjB = applyContrast(adjB, contrast);
+
+        // Standard luminance formula with adjusted values
+        const gray = 0.299 * adjR + 0.587 * adjG + 0.114 * adjB;
         asciiStr += getChar(gray, chars, config.invert);
-        if (colors) rowColors.push(rgbToHex(r, g, b));
+        if (colors) rowColors.push(rgbToHex(Math.round(adjR), Math.round(adjG), Math.round(adjB)));
       }
     }
     if (colors) colors.push(rowColors);

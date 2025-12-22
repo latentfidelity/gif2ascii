@@ -30,22 +30,23 @@ Gif2Ascii is a React-based web app and Node.js CLI tool that converts GIF animat
 
 ### Core Flow
 
-1. **FileUpload** accepts GIF/image files via drag-drop or file picker
+1. **FileUpload** accepts GIF/PNG/JPEG/WebP files via drag-drop or file picker
 2. **TenorSearch** provides inline GIF search (requires API key in `.env`)
 3. **App** manages configuration state (density, colors, font aspect ratio, output dimensions)
 4. **AsciiPlayer** handles:
    - GIF parsing via `gifuct-js` (decompresses frames with proper disposal handling)
+   - Static image loading for PNG/JPEG/WebP (detected via magic bytes)
    - Frame composition on an offscreen canvas (handles GIF disposal types 2/3)
    - ASCII conversion via `services/asciiUtils.ts`
    - Canvas rendering with JetBrains Mono font
-   - Export to GIF (`gifenc`) or MP4 (`mediabunny` via WebCodecs, with WebM fallback)
+   - Export to GIF/MP4 (animated) or PNG (static)
 
 ### Key Files
 
 Source files are in the project root (no `src/` directory):
 
 - `App.tsx` - Main component with all render settings state
-- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~750 lines)
+- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~1060 lines)
 - `components/TenorSearch.tsx` - Tenor API integration with debounced search and infinite scroll
 - `services/asciiUtils.ts` - Image-to-ASCII conversion algorithms
 - `services/videoExport.ts` - MP4/WebM video export with WebCodecs
@@ -56,11 +57,23 @@ Source files are in the project root (no `src/` directory):
 
 `resizeAndGetImageData()` → scales source to target resolution accounting for font aspect ratio → `convertToAscii()` → maps pixel luminance to character set
 
-Two character sets are available in `asciiUtils.ts`:
-- `DEFAULT_CHARS`: `@%#*+=-:. ` (10 chars, used for normal density)
-- `DENSE_CHARS`: 70 chars from `$` to space (used for high density mode)
+Character presets in `asciiUtils.ts`:
+- **Standard**: `@%#*+=-:. ` (10 chars, default)
+- **Dense**: 70 chars from `$` to space (high detail)
+- **Blocks**: `█▓▒░ ` (Unicode block characters)
+- **Simple**: `@#*+:. ` (minimal set)
+- **Binary**: `@ ` (2 chars only)
+- **Braille**: Unicode braille patterns
 
 Characters map dark to light. The `invert` flag reverses this mapping. The `useSourceColor` option preserves original pixel colors for each ASCII character.
+
+### Image Adjustments
+
+The conversion pipeline supports real-time image adjustments applied before ASCII conversion:
+- **Brightness**: -100 to +100 (additive adjustment)
+- **Contrast**: -100 to +100 (factor around midpoint 128)
+- **Saturation**: -100 to +100 (-100 = grayscale)
+- **Edge Detection**: Sobel filter for outline/contour effects
 
 ### GIF Frame Handling
 
@@ -101,9 +114,15 @@ Renders colored ASCII characters using ANSI escape codes. Uses alternate screen 
 Renders actual pixel graphics for terminals that support Sixel (iTerm2, Windows Terminal, mlterm, foot). First renders ASCII art to a canvas, then encodes to Sixel format.
 
 ### CLI Key Features
-- Accepts local files or URLs
+- Accepts local files or URLs (GIF, PNG, JPEG, WebP)
 - ANSI true color (24-bit) support with `--source-color`
-- Export to bash scripts (`.sh`), PowerShell scripts (`.ps1`), ANSI files (`.ans`), or plain text (`.txt`)
+- Auto-scales to fit terminal dimensions (disable with `--no-fit`)
+- Single frame mode with `--frame <n>`
+- Export formats via `-o`:
+  - `.sh` - Bash script with animation loop
+  - `.ps1` - PowerShell script with animation loop
+  - `.ans` - Single frame with ANSI escape codes
+  - `.txt` - Plain text (no colors)
 - Uses `@napi-rs/canvas` for Node.js canvas operations
 - Uses `commander` for argument parsing
 - Bundled with esbuild (ESM format, external `@napi-rs/canvas`)

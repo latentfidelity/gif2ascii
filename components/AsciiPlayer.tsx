@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Loader2, Download, Video, FileImage, ImageIcon } from 'lucide-react';
+import { Play, Pause, RotateCcw, Loader2, Download, Video, FileImage, Copy, FileText, ChevronLeft, ChevronRight, Code, Terminal } from 'lucide-react';
 import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { AsciiConfig } from '../types';
-import { resizeAndGetImageData, convertToAscii, AsciiResult } from '../services/asciiUtils';
+import { resizeAndGetImageData, convertToAscii, AsciiResult, applyEdgeDetection } from '../services/asciiUtils';
 import { exportVideo, downloadBlob, isMP4ExportSupported } from '../services/videoExport';
 
 // Check if buffer is a GIF by magic bytes
@@ -156,6 +156,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const [exportProgress, setExportProgress] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
   const [displaySize, setDisplaySize] = useState<{ width: number; height: number }>({ width: 1, height: 1 });
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  const [lastAsciiText, setLastAsciiText] = useState<string>('');
   const outputAspectRatio = outputWidth && outputHeight ? outputWidth / outputHeight : 0;
   const displayAspectRatio = outputAspectRatio > 0 ? outputAspectRatio : aspectRatio;
 
@@ -295,7 +298,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             outputAspectRatio
           )
         : null;
-     const imageData = resizeAndGetImageData(
+     let imageData = resizeAndGetImageData(
         compositionCanvasRef.current,
         config.resolution,
         config.fontAspectRatio,
@@ -305,6 +308,11 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
      if (!imageData) return null;
 
+     // Apply edge detection if enabled
+     if (config.edgeDetection) {
+        imageData = applyEdgeDetection(imageData, imageData.width, imageData.height);
+     }
+
      const asciiResult = convertToAscii(
         imageData,
         imageData.width,
@@ -313,6 +321,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
      );
      const asciiString = asciiResult.text;
      const colors = asciiResult.colors;
+
+     // Store last ASCII text for copy function
+     setLastAsciiText(asciiString);
 
      // Clear and Draw Text
      if (hasTransparentBg) {
@@ -419,7 +430,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     // If delay is 0, we treat it as 100ms for playback comfort,
     // unless it's a very high framerate gif where 0 means "as fast as possible".
     // Standard browsers treat 0 as 100ms (10fps).
-    const delay = currentFrame.delay === 0 ? 100 : currentFrame.delay;
+    const baseDelay = currentFrame.delay === 0 ? 100 : currentFrame.delay;
+    // Apply playback speed (higher speed = shorter delay)
+    const delay = baseDelay / playbackSpeed;
 
     // Check if it's time to advance frame
     if (timestamp - lastFrameTimeRef.current >= delay) {
@@ -458,10 +471,11 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         }
 
         frameIndexRef.current = (frameIndexRef.current + 1) % frames.length;
+        setCurrentFrameIndex(frameIndexRef.current);
     }
 
     requestRef.current = requestAnimationFrame(renderLoop);
-  }, [isStaticImage, isPlaying, isExporting, frames, config, onFrame, renderCurrentFrameToCanvas]);
+  }, [isStaticImage, isPlaying, isExporting, frames, config, onFrame, renderCurrentFrameToCanvas, playbackSpeed]);
 
   // Start/Stop Loop
   useEffect(() => {
@@ -471,61 +485,32 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     };
   }, [renderLoop]);
 
-  // Size Observer
+  // Size and Canvas Setup
   useEffect(() => {
     const canvas = canvasRef.current;
-    const frame = frameRef.current;
-    if (!canvas || !frame) return;
+    if (!canvas) return;
 
-    const updateSize = () => {
-        const { clientWidth, clientHeight } = frame;
-        const ratio = displayAspectRatio > 0 ? displayAspectRatio : 1;
-        let fittedWidth = clientWidth;
-        let fittedHeight = Math.round(clientWidth / ratio);
-        if (fittedHeight > clientHeight) {
-            fittedHeight = clientHeight;
-            fittedWidth = Math.round(clientHeight * ratio);
-        }
-        fittedWidth = Math.max(1, Math.floor(fittedWidth));
-        fittedHeight = Math.max(1, Math.floor(fittedHeight));
+    // Calculate display size from output dimensions
+    const width = Math.max(1, Math.floor(outputWidth || 400));
+    const height = Math.max(1, Math.floor(outputHeight || 300));
 
-        setDisplaySize((prev) => {
-            if (prev.width === fittedWidth && prev.height === fittedHeight) return prev;
-            return { width: fittedWidth, height: fittedHeight };
-        });
+    setDisplaySize((prev) => {
+      if (prev.width === width && prev.height === height) return prev;
+      return { width, height };
+    });
 
-        let canvasResized = false;
+    let canvasResized = false;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+      canvasResized = true;
+    }
 
-        if (outputWidth && outputHeight) {
-            const width = Math.max(1, Math.floor(outputWidth));
-            const height = Math.max(1, Math.floor(outputHeight));
-            if (canvas.width !== width || canvas.height !== height) {
-                canvas.width = width;
-                canvas.height = height;
-                canvasResized = true;
-            }
-        } else {
-            const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            const width = Math.max(1, Math.floor(fittedWidth * dpr));
-            const height = Math.max(1, Math.floor(fittedHeight * dpr));
-
-            if (canvas.width !== width || canvas.height !== height) {
-                canvas.width = width;
-                canvas.height = height;
-                canvasResized = true;
-            }
-        }
-
-        // For static images, render immediately after resize to prevent flicker
-        if (canvasResized && isStaticImage && compositionCanvasRef.current) {
-            renderCurrentFrameToCanvas(undefined, true);
-        }
-    };
-    updateSize();
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(frame);
-    return () => observer.disconnect();
-  }, [outputWidth, outputHeight, displayAspectRatio, isStaticImage, renderCurrentFrameToCanvas]);
+    // For static images, render immediately after resize to prevent flicker
+    if (canvasResized && isStaticImage && compositionCanvasRef.current) {
+      renderCurrentFrameToCanvas(undefined, true);
+    }
+  }, [outputWidth, outputHeight, isStaticImage, renderCurrentFrameToCanvas]);
 
   const togglePlay = () => setIsPlaying(!isPlaying);
   
@@ -572,6 +557,226 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     a.click();
     document.body.removeChild(a);
   }, [outputWidth, outputHeight, exportScale, renderCurrentFrameToCanvas]);
+
+  // --- COPY TO CLIPBOARD ---
+  const copyImageToClipboard = useCallback(async () => {
+    if (!canvasRef.current) return;
+    try {
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvasRef.current!.toBlob(resolve, 'image/png')
+      );
+      if (blob) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+      }
+    } catch (e) {
+      console.error('Failed to copy image:', e);
+    }
+  }, []);
+
+  const copyTextToClipboard = useCallback(async () => {
+    if (!lastAsciiText) return;
+    try {
+      await navigator.clipboard.writeText(lastAsciiText);
+    } catch (e) {
+      console.error('Failed to copy text:', e);
+    }
+  }, [lastAsciiText]);
+
+  // --- ANSI/HTML EXPORT ---
+  const exportAsHtml = useCallback(() => {
+    if (!canvasRef.current || !compositionCanvasRef.current) return;
+
+    // Get current ASCII with colors
+    const outputAspectRatio = outputWidth && outputHeight
+      ? outputHeight / outputWidth
+      : undefined;
+    let imageData = resizeAndGetImageData(
+      compositionCanvasRef.current,
+      config.resolution,
+      config.fontAspectRatio,
+      getOffscreenCanvas(),
+      outputAspectRatio
+    );
+    if (!imageData) return;
+
+    if (config.edgeDetection) {
+      imageData = applyEdgeDetection(imageData, imageData.width, imageData.height);
+    }
+
+    const asciiResult = convertToAscii(imageData, imageData.width, imageData.height, config);
+    const lines = asciiResult.text.split('\n').filter(l => l.length > 0);
+    const colors = asciiResult.colors;
+
+    // Build HTML
+    let html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ASCII Art</title>
+  <style>
+    body { margin: 0; padding: 20px; background: ${config.backgroundColor === 'transparent' ? '#000' : config.backgroundColor}; }
+    pre { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 12px; line-height: 1; margin: 0; }
+    span { display: inline-block; width: 1ch; text-align: center; }
+  </style>
+</head>
+<body>
+<pre>`;
+
+    for (let y = 0; y < lines.length; y++) {
+      const line = lines[y];
+      for (let x = 0; x < line.length; x++) {
+        const char = line[x];
+        const color = colors && config.useSourceColor ? colors[y]?.[x] : config.color;
+        if (color && color !== 'transparent') {
+          html += `<span style="color:${color}">${char === ' ' ? '&nbsp;' : char.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+        } else {
+          html += `<span>${char === ' ' ? '&nbsp;' : char.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
+        }
+      }
+      html += '\n';
+    }
+
+    html += `</pre>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    downloadBlob(blob, `ascii-art-${Date.now()}.html`);
+  }, [config, outputWidth, outputHeight, getOffscreenCanvas]);
+
+  const exportAsAnsi = useCallback(() => {
+    if (!canvasRef.current || !compositionCanvasRef.current) return;
+
+    const outputAspectRatio = outputWidth && outputHeight
+      ? outputHeight / outputWidth
+      : undefined;
+    let imageData = resizeAndGetImageData(
+      compositionCanvasRef.current,
+      config.resolution,
+      config.fontAspectRatio,
+      getOffscreenCanvas(),
+      outputAspectRatio
+    );
+    if (!imageData) return;
+
+    if (config.edgeDetection) {
+      imageData = applyEdgeDetection(imageData, imageData.width, imageData.height);
+    }
+
+    const asciiResult = convertToAscii(imageData, imageData.width, imageData.height, config);
+    const lines = asciiResult.text.split('\n').filter(l => l.length > 0);
+    const colors = asciiResult.colors;
+
+    let ansi = '';
+    const RESET = '\x1b[0m';
+
+    for (let y = 0; y < lines.length; y++) {
+      const line = lines[y];
+      for (let x = 0; x < line.length; x++) {
+        const char = line[x];
+        if (config.useSourceColor && colors && colors[y]?.[x] && colors[y][x] !== 'transparent') {
+          // Parse hex color
+          const hex = colors[y][x];
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          ansi += `\x1b[38;2;${r};${g};${b}m${char}`;
+        } else {
+          ansi += char;
+        }
+      }
+      ansi += RESET + '\n';
+    }
+
+    const blob = new Blob([ansi], { type: 'text/plain' });
+    downloadBlob(blob, `ascii-art-${Date.now()}.ans`);
+  }, [config, outputWidth, outputHeight, getOffscreenCanvas]);
+
+  // --- FRAME NAVIGATION ---
+  const goToFrame = useCallback((index: number) => {
+    if (frames.length === 0 || !compositionCtxRef.current || !compositionCanvasRef.current) return;
+
+    // Clamp index
+    const targetIndex = Math.max(0, Math.min(frames.length - 1, index));
+
+    // Reset composition and rebuild up to target frame
+    const ctx = compositionCtxRef.current;
+    ctx.clearRect(0, 0, compositionCanvasRef.current.width, compositionCanvasRef.current.height);
+
+    for (let i = 0; i <= targetIndex; i++) {
+      const frame = frames[i];
+      const { width, height, top, left } = frame.dims;
+
+      if (frame.patch && patchCtxRef.current && patchCanvasRef.current) {
+        const patchData = new ImageData(frame.patch, width, height);
+        patchCanvasRef.current.width = width;
+        patchCanvasRef.current.height = height;
+        patchCtxRef.current.putImageData(patchData, 0, 0);
+        ctx.drawImage(patchCanvasRef.current, left, top);
+      }
+
+      if (frame.disposalType === 2 && i < targetIndex) {
+        ctx.clearRect(left, top, width, height);
+      }
+    }
+
+    frameIndexRef.current = targetIndex;
+    setCurrentFrameIndex(targetIndex);
+    renderCurrentFrameToCanvas(undefined, true);
+  }, [frames, renderCurrentFrameToCanvas]);
+
+  const stepFrame = useCallback((delta: number) => {
+    const newIndex = (frameIndexRef.current + delta + frames.length) % frames.length;
+    goToFrame(newIndex);
+  }, [frames.length, goToFrame]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key) {
+        case ' ':
+          e.preventDefault();
+          if (!isStaticImage) setIsPlaying(p => !p);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (!isStaticImage && frames.length > 0) {
+            setIsPlaying(false);
+            stepFrame(-1);
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (!isStaticImage && frames.length > 0) {
+            setIsPlaying(false);
+            stepFrame(1);
+          }
+          break;
+        case 'Home':
+          e.preventDefault();
+          if (!isStaticImage && frames.length > 0) {
+            setIsPlaying(false);
+            goToFrame(0);
+          }
+          break;
+        case 'End':
+          e.preventDefault();
+          if (!isStaticImage && frames.length > 0) {
+            setIsPlaying(false);
+            goToFrame(frames.length - 1);
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isStaticImage, frames.length, stepFrame, goToFrame]);
 
   // --- EXPORT LOGIC (DECOUPLED) ---
   
@@ -808,16 +1013,13 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   return (
     <div
       ref={frameRef}
-      className="w-full h-full flex items-center justify-center"
+      className="group relative overflow-hidden rounded-xl shadow-2xl border border-zinc-800 transition-colors duration-300"
+      style={{
+        backgroundColor: config.backgroundColor,
+        width: `${displaySize.width}px`,
+        height: `${displaySize.height}px`
+      }}
     >
-      <div
-        className="group relative overflow-hidden rounded-xl shadow-2xl border border-zinc-800 transition-colors duration-300"
-        style={{
-          backgroundColor: config.backgroundColor,
-          width: `${displaySize.width}px`,
-          height: `${displaySize.height}px`
-        }}
-      >
           {isLoading && (
               <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm text-zinc-400">
                   <Loader2 className="animate-spin mb-2" size={32} />
@@ -844,18 +1046,77 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
           <canvas ref={canvasRef} className="w-full h-full block" />
 
+          {/* Frame info bar - top */}
+          {!isStaticImage && frames.length > 1 && (
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl">
+              <span className="text-xs text-zinc-400 font-mono">
+                {currentFrameIndex + 1} / {frames.length}
+              </span>
+              <div className="w-px h-3 bg-zinc-700" />
+              <select
+                value={playbackSpeed}
+                onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
+                className="bg-transparent text-xs text-zinc-300 focus:outline-none cursor-pointer"
+                title="Playback Speed"
+              >
+                <option value={0.25}>0.25x</option>
+                <option value={0.5}>0.5x</option>
+                <option value={1}>1x</option>
+                <option value={1.5}>1.5x</option>
+                <option value={2}>2x</option>
+              </select>
+            </div>
+          )}
+
+          {/* Frame scrubber - just above controls */}
+          {!isStaticImage && frames.length > 1 && (
+            <div className="absolute bottom-16 left-4 right-4 z-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <input
+                type="range"
+                min={0}
+                max={frames.length - 1}
+                value={currentFrameIndex}
+                onChange={(e) => {
+                  setIsPlaying(false);
+                  goToFrame(Number(e.target.value));
+                }}
+                className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+            </div>
+          )}
+
           {/* Controls */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-2 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-2 py-1.5 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl">
                {/* Animation controls - only for animated GIFs */}
                {!isStaticImage && (
                  <>
+                   {/* Step back */}
+                   <button
+                      onClick={() => { setIsPlaying(false); stepFrame(-1); }}
+                      disabled={isExporting}
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+                      title="Previous Frame (←)"
+                   >
+                      <ChevronLeft size={16} />
+                   </button>
+
                    <button
                       onClick={togglePlay}
                       disabled={isExporting}
                       className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
-                      title={isPlaying ? "Pause" : "Play"}
+                      title={isPlaying ? "Pause (Space)" : "Play (Space)"}
                    >
                       {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                   </button>
+
+                   {/* Step forward */}
+                   <button
+                      onClick={() => { setIsPlaying(false); stepFrame(1); }}
+                      disabled={isExporting}
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+                      title="Next Frame (→)"
+                   >
+                      <ChevronRight size={16} />
                    </button>
 
                    <div className="w-px h-4 bg-zinc-700" />
@@ -863,46 +1124,84 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
                    <button
                       onClick={restart}
                       disabled={isExporting}
-                      className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
                       title="Restart"
                    >
-                      <RotateCcw size={18} />
+                      <RotateCcw size={16} />
                    </button>
 
                    <div className="w-px h-4 bg-zinc-700" />
+                 </>
+               )}
 
+               {/* Copy buttons */}
+               <button
+                  onClick={copyImageToClipboard}
+                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors"
+                  title="Copy Image"
+               >
+                  <Copy size={16} />
+               </button>
+
+               <button
+                  onClick={copyTextToClipboard}
+                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors"
+                  title="Copy ASCII Text"
+               >
+                  <FileText size={16} />
+               </button>
+
+               <div className="w-px h-4 bg-zinc-700" />
+
+               {/* Export buttons */}
+               {!isStaticImage && (
+                 <>
                    <button
                       onClick={handleExportVideo}
                       disabled={isExporting}
-                      className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors disabled:opacity-50"
                       title="Export Video"
                    >
-                      <Video size={18} />
+                      <Video size={16} />
                    </button>
 
                    <button
                       onClick={handleExportGif}
                       disabled={isExporting}
-                      className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors disabled:opacity-50"
                       title="Export GIF"
                    >
-                      <FileImage size={18} />
+                      <FileImage size={16} />
                    </button>
                  </>
                )}
 
-               {/* PNG export - for static images */}
-               {isStaticImage && (
-                 <button
-                    onClick={handleExportPng}
-                    className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 hover:text-indigo-400 transition-colors"
-                    title="Export PNG"
-                 >
-                    <Download size={18} />
-                 </button>
-               )}
+               {/* PNG export - for all */}
+               <button
+                  onClick={handleExportPng}
+                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors"
+                  title="Export PNG"
+               >
+                  <Download size={16} />
+               </button>
+
+               {/* HTML/ANSI exports */}
+               <button
+                  onClick={exportAsHtml}
+                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors"
+                  title="Export HTML"
+               >
+                  <Code size={16} />
+               </button>
+
+               <button
+                  onClick={exportAsAnsi}
+                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors"
+                  title="Export ANSI (.ans)"
+               >
+                  <Terminal size={16} />
+               </button>
           </div>
-      </div>
     </div>
   );
 };
