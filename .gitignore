@@ -27,3 +27,6 @@ settings.local.json
 *.njsproj
 *.sln
 *.sw?
+
+# Test files
+wombo-coin.gif
