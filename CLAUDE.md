@@ -62,7 +62,7 @@ Character presets in `asciiUtils.ts`:
 - **Dense**: 70 chars from `$` to space (high detail)
 - **Blocks**: `█▓▒░ ` (Unicode block characters)
 - **Simple**: `@#*+:. ` (minimal set)
-- **Binary**: `@ ` (2 chars only)
+- **Binary**: `10` (digits only)
 - **Braille**: Unicode braille patterns
 
 Characters map dark to light. The `invert` flag reverses this mapping. The `useSourceColor` option preserves original pixel colors for each ASCII character.

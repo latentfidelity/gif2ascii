@@ -4,8 +4,16 @@ export const DEFAULT_CHARS = "@%#*+=-:. ";
 export const DENSE_CHARS = "$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,\"^`'. ";
 export const BLOCKS_CHARS = "█▓▒░ ";
 export const SIMPLE_CHARS = "@#*+:. ";
-export const BINARY_CHARS = "@ ";
+export const BINARY_CHARS = "10";
 export const BRAILLE_CHARS = "⣿⣷⣯⣟⡿⢿⣻⣽⣾⣶⣦⣴⣤⣄⣀⡀ ";
+export const NUMERIC_CHARS = "0123456789";
+export const KATAKANA_CHARS = "ヲァィゥェォャュョッアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン ";
+export const DOTS_CHARS = "●◉◎○· ";
+export const SHADES_CHARS = "█▓▒░· ";
+export const CROSSES_CHARS = "╬╫╪┼+· ";
+export const STARS_CHARS = "★☆✦✧· ";
+export const SLASHES_CHARS = "#/\\|-:. ";
+export const MINIMAL_CHARS = "█ ";
 
 export const CHAR_PRESETS: { name: string; chars: string }[] = [
   { name: "Standard", chars: DEFAULT_CHARS },
@@ -14,6 +22,14 @@ export const CHAR_PRESETS: { name: string; chars: string }[] = [
   { name: "Simple", chars: SIMPLE_CHARS },
   { name: "Binary", chars: BINARY_CHARS },
   { name: "Braille", chars: BRAILLE_CHARS },
+  { name: "Numeric", chars: NUMERIC_CHARS },
+  { name: "Katakana", chars: KATAKANA_CHARS },
+  { name: "Dots", chars: DOTS_CHARS },
+  { name: "Shades", chars: SHADES_CHARS },
+  { name: "Crosses", chars: CROSSES_CHARS },
+  { name: "Stars", chars: STARS_CHARS },
+  { name: "Slashes", chars: SLASHES_CHARS },
+  { name: "Minimal", chars: MINIMAL_CHARS },
 ];
 
 export interface AsciiResult {
