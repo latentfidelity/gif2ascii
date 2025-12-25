@@ -24,6 +24,8 @@ const App: React.FC = () => {
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(0);
   const [saturation, setSaturation] = useState(0);
+  const [dithering, setDithering] = useState(false);
+  const [sharpness, setSharpness] = useState(50);
   const [export2x, setExport2x] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -73,8 +75,10 @@ const App: React.FC = () => {
     useSourceColor,
     brightness,
     contrast,
-    saturation
-  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor, brightness, contrast, saturation]);
+    saturation,
+    dithering,
+    sharpness
+  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor, brightness, contrast, saturation, dithering, sharpness]);
 
   // Defer expensive config updates to keep sliders responsive
   const deferredConfig = useDeferredValue(config);
@@ -146,6 +150,8 @@ const App: React.FC = () => {
     setBrightness(0);
     setContrast(0);
     setSaturation(0);
+    setDithering(false);
+    setSharpness(50);
     setExport2x(false);
     setLockOutputAspect(true);
     if (inputSize) {
@@ -538,6 +544,33 @@ const App: React.FC = () => {
                       onChange={(e) => setSaturation(Number(e.target.value))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     />
+                  </div>
+
+                  {/* Sharpness */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>Sharpness</span>
+                      <span>{sharpness}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={sharpness}
+                      onChange={(e) => setSharpness(Number(e.target.value))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Dithering Toggle */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-300">Dithering</span>
+                    <button
+                      onClick={() => setDithering(!dithering)}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${dithering ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+                    >
+                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${dithering ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
                   </div>
 
                 </div>

@@ -304,7 +304,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         config.resolution,
         config.fontAspectRatio,
         getOffscreenCanvas(),
-        outputAspectRatio
+        outputAspectRatio,
+        config.sharpness || 0
      );
 
      if (!imageData) return null;
@@ -606,7 +607,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
       config.resolution,
       config.fontAspectRatio,
       getOffscreenCanvas(),
-      outputAspectRatio
+      outputAspectRatio,
+      config.sharpness || 0
     );
     if (!imageData) return;
 
@@ -662,7 +664,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
       config.resolution,
       config.fontAspectRatio,
       getOffscreenCanvas(),
-      outputAspectRatio
+      outputAspectRatio,
+      config.sharpness || 0
     );
     if (!imageData) return;
 

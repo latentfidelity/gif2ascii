@@ -55,7 +55,14 @@ Source files are in the project root (no `src/` directory):
 
 ### ASCII Conversion Pipeline
 
-`resizeAndGetImageData()` → scales source to target resolution accounting for font aspect ratio → `convertToAscii()` → maps pixel luminance to character set
+`resizeAndGetImageData()` → scales source with high-quality smoothing + optional sharpening → `convertToAscii()` → gamma-corrected luminance mapping with density-calibrated characters + optional dithering
+
+**Quality Features:**
+- **Gamma Correction**: Applies sRGB gamma (2.2) for perceptually accurate luminance mapping
+- **Character Density Calibration**: Characters are mapped by their actual visual density (pixel coverage), not linear position
+- **Floyd-Steinberg Dithering**: Optional error-diffusion dithering for smoother gradients in ASCII output
+- **Pre-sharpening Filter**: Unsharp mask applied before downsampling to preserve edge details
+- **High-Quality Downsampling**: Uses `imageSmoothingQuality: 'high'` for better detail retention
 
 Character presets in `asciiUtils.ts`:
 - **Standard**: `@%#*+=-:. ` (10 chars, default)
@@ -80,6 +87,8 @@ The conversion pipeline supports real-time image adjustments applied before ASCI
 - **Brightness**: -100 to +100 (additive adjustment)
 - **Contrast**: -100 to +100 (factor around midpoint 128)
 - **Saturation**: -100 to +100 (-100 = grayscale)
+- **Sharpness**: 0 to 100 (unsharp mask strength for edge enhancement)
+- **Dithering**: Toggle for Floyd-Steinberg error diffusion (smoother gradients)
 
 ### GIF Frame Handling
 
