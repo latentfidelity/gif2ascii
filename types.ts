@@ -7,6 +7,12 @@ export interface PostProcessingConfig {
   flicker: number;          // 0-100: Brightness flicker (for animation)
 }
 
+export interface AnimationEffectsConfig {
+  matrixRain: number;      // 0-100: Matrix-style falling characters intensity
+  waveDistortion: number;  // 0-100: Horizontal wave distortion
+  typingReveal: boolean;   // Typing effect for static images
+}
+
 export interface AsciiConfig {
   resolution: number; // Width in characters
   chars: string; // The character set (darkest to lightest)
@@ -23,6 +29,7 @@ export interface AsciiConfig {
   sharpness: number; // Pre-sharpening filter strength (0-100, 0 is off)
   colorPalette: string; // Color palette ID for retro effects (e.g., 'gameboy', 'c64', 'none')
   postProcessing: PostProcessingConfig; // CRT and visual effects
+  animationEffects: AnimationEffectsConfig; // Animated effects (matrix rain, wave, etc.)
 }
 
 export interface AsciiFrame {

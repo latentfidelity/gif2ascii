@@ -46,9 +46,11 @@ Gif2Ascii is a React-based web app and Node.js CLI tool that converts GIF animat
 Source files are in the project root (no `src/` directory):
 
 - `App.tsx` - Main component with all render settings state
-- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~1200 lines)
+- `components/AsciiPlayer.tsx` - Core playback/rendering/export logic (~1250 lines)
 - `components/TenorSearch.tsx` - Tenor API integration with debounced search and infinite scroll
 - `services/asciiUtils.ts` - Image-to-ASCII conversion algorithms
+- `services/postProcessing.ts` - CRT and visual post-processing effects
+- `services/animationEffects.ts` - Animated effects (matrix rain, wave, typing)
 - `services/videoExport.ts` - MP4/WebM video export with WebCodecs
 - `types.ts` - TypeScript interfaces (AsciiConfig, AsciiFrame, AppState)
 - `cli/index.ts` - CLI tool source (bundled with esbuild to `cli/dist/index.js`)
@@ -110,6 +112,16 @@ CRT and visual effects applied after ASCII rendering (`services/postProcessing.t
 - **RGB Split**: Chromatic aberration with horizontal RGB channel offset
 - **Static Noise**: Random noise overlay
 - **Vignette**: Radial edge darkening
+- **Flicker**: Subtle brightness oscillation for CRT effect
+
+### Animation Effects
+
+Animated overlays and effects requiring continuous updates (`services/animationEffects.ts`):
+- **Matrix Rain**: Falling Japanese/alphanumeric characters overlay (0-100 intensity)
+- **Wave Distortion**: Horizontal sinusoidal pixel displacement (0-100 intensity)
+- **Typing Reveal**: Typewriter-style character reveal with blinking cursor (static images)
+
+These effects run in a continuous render loop when enabled, even for static images or paused GIFs.
 
 ### GIF Frame Handling
 

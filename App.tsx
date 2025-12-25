@@ -3,7 +3,7 @@ import { Settings, RefreshCcw, Layers, Monitor, RotateCcw, Link, ChevronDown, Pa
 import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
 import TenorSearch from './components/TenorSearch';
-import { AsciiConfig, AppState, PostProcessingConfig } from './types';
+import { AsciiConfig, AppState, PostProcessingConfig, AnimationEffectsConfig } from './types';
 import { DEFAULT_CHARS, CHAR_PRESETS, COLOR_PALETTES } from './services/asciiUtils';
 
 const DEFAULT_DENSITY_CELL_WIDTH = 5;
@@ -34,6 +34,11 @@ const App: React.FC = () => {
     noise: 0,
     vignette: 0,
     flicker: 0
+  });
+  const [animationEffects, setAnimationEffects] = useState<AnimationEffectsConfig>({
+    matrixRain: 0,
+    waveDistortion: 0,
+    typingReveal: false
   });
   const [export2x, setExport2x] = useState(false);
   const [urlInput, setUrlInput] = useState('');
@@ -89,8 +94,9 @@ const App: React.FC = () => {
     dithering,
     sharpness,
     colorPalette,
-    postProcessing
-  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor, brightness, contrast, saturation, dithering, sharpness, colorPalette, postProcessing]);
+    postProcessing,
+    animationEffects
+  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor, brightness, contrast, saturation, dithering, sharpness, colorPalette, postProcessing, animationEffects]);
 
   // Defer expensive config updates to keep sliders responsive
   const deferredConfig = useDeferredValue(config);
@@ -172,6 +178,11 @@ const App: React.FC = () => {
       noise: 0,
       vignette: 0,
       flicker: 0
+    });
+    setAnimationEffects({
+      matrixRain: 0,
+      waveDistortion: 0,
+      typingReveal: false
     });
     setExport2x(false);
     setLockOutputAspect(true);
@@ -753,6 +764,72 @@ const App: React.FC = () => {
                       onChange={(e) => setPostProcessing(p => ({ ...p, vignette: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     />
+                  </div>
+
+                  {/* Flicker */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>Flicker</span>
+                      <span>{postProcessing.flicker}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={postProcessing.flicker}
+                      onChange={(e) => setPostProcessing(p => ({ ...p, flicker: Number(e.target.value) }))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Animation Effects Separator */}
+                  <div className="flex items-center gap-2 pt-2">
+                    <div className="flex-1 h-px bg-zinc-700" />
+                    <span className="text-xs text-zinc-500">Animation</span>
+                    <div className="flex-1 h-px bg-zinc-700" />
+                  </div>
+
+                  {/* Matrix Rain */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>Matrix Rain</span>
+                      <span>{animationEffects.matrixRain}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={animationEffects.matrixRain}
+                      onChange={(e) => setAnimationEffects(a => ({ ...a, matrixRain: Number(e.target.value) }))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Wave Distortion */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>Wave Distortion</span>
+                      <span>{animationEffects.waveDistortion}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={animationEffects.waveDistortion}
+                      onChange={(e) => setAnimationEffects(a => ({ ...a, waveDistortion: Number(e.target.value) }))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Typing Reveal */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-300">Typing Reveal</span>
+                    <button
+                      onClick={() => setAnimationEffects(a => ({ ...a, typingReveal: !a.typingReveal }))}
+                      className={`w-12 h-6 rounded-full transition-colors relative ${animationEffects.typingReveal ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+                    >
+                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${animationEffects.typingReveal ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
                   </div>
                 </div>
               )}

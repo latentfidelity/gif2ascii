@@ -6,6 +6,7 @@ import { AsciiConfig } from '../types';
 import { resizeAndGetImageData, convertToAscii, AsciiResult } from '../services/asciiUtils';
 import { exportVideo, downloadBlob, isMP4ExportSupported } from '../services/videoExport';
 import { applyPostProcessing, hasPostProcessing } from '../services/postProcessing';
+import { renderMatrixRain, applyWaveDistortion, applyTypingReveal, resetTypingReveal, hasAnimationEffects } from '../services/animationEffects';
 
 // Check if buffer is a GIF by magic bytes
 const isGifBuffer = (buffer: ArrayBuffer): boolean => {
@@ -192,6 +193,9 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     // Cleanup previous composition
     compositionCanvasRef.current = null;
 
+    // Reset typing reveal animation
+    resetTypingReveal();
+
     const loadImage = async () => {
       try {
         const resp = await fetch(imageSrc);
@@ -282,7 +286,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   }, [imageSrc]);
 
   // Core Render Logic (Draws to canvasRef based on current composition)
-  const renderCurrentFrameToCanvas = useCallback((targetCanvas?: HTMLCanvasElement, includeOverlay?: boolean) => {
+  const renderCurrentFrameToCanvas = useCallback((targetCanvas?: HTMLCanvasElement, includeOverlay?: boolean, time?: number) => {
      const finalCanvas = targetCanvas || canvasRef.current;
      if (!finalCanvas || !compositionCanvasRef.current) return null;
      
@@ -394,8 +398,32 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
      }
 
      // Apply post-processing effects (CRT, glow, etc.)
+     const currentTime = time ?? Date.now();
      if (includeOverlay && config.postProcessing && hasPostProcessing(config.postProcessing)) {
-         applyPostProcessing(finalCanvas, config.postProcessing, Date.now());
+         applyPostProcessing(finalCanvas, config.postProcessing, currentTime);
+     }
+
+     // Apply animation effects (matrix rain, wave distortion, typing reveal)
+     if (includeOverlay && config.animationEffects && hasAnimationEffects(config.animationEffects)) {
+         const rows = lines.length;
+         const cols = lines[0]?.length || 1;
+         const cellHeight = finalCanvas.height / rows;
+         const cellWidth = finalCanvas.width / cols;
+
+         // Wave distortion (applies to whole canvas)
+         if (config.animationEffects.waveDistortion > 0) {
+             applyWaveDistortion(finalCtx, finalCanvas, config.animationEffects.waveDistortion, currentTime);
+         }
+
+         // Matrix rain overlay
+         if (config.animationEffects.matrixRain > 0) {
+             renderMatrixRain(finalCtx, finalCanvas.width, finalCanvas.height, cellWidth, cellHeight, config.animationEffects.matrixRain, currentTime);
+         }
+
+         // Typing reveal (for static images or paused GIFs)
+         if (config.animationEffects.typingReveal) {
+             applyTypingReveal(finalCtx, finalCanvas.width, finalCanvas.height, cellWidth, cellHeight, currentTime, config.backgroundColor);
+         }
      }
 
      return { finalCtx, finalCanvas };
@@ -406,16 +434,40 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   useEffect(() => {
     if (!isStaticImage || isLoading || !compositionCanvasRef.current || !canvasRef.current) return;
 
-    // Render the static image with current config
-    const result = renderCurrentFrameToCanvas(undefined, true);
+    // Check if animation effects need continuous updates
+    const needsAnimationLoop = config.animationEffects && hasAnimationEffects(config.animationEffects);
 
-    // Capture frame for AI if not already captured
-    if (result && !frameCapturedRef.current && onFrame) {
-      try {
-        const base64 = result.finalCanvas.toDataURL('image/png').split(',')[1];
-        onFrame(base64);
-        frameCapturedRef.current = true;
-      } catch(e) {}
+    if (needsAnimationLoop) {
+      // Animation effects need continuous rendering
+      let animationId: number;
+      const animate = () => {
+        renderCurrentFrameToCanvas(undefined, true, Date.now());
+        animationId = requestAnimationFrame(animate);
+      };
+      animationId = requestAnimationFrame(animate);
+
+      // Capture frame for AI once
+      if (!frameCapturedRef.current && onFrame) {
+        try {
+          const base64 = canvasRef.current.toDataURL('image/png').split(',')[1];
+          onFrame(base64);
+          frameCapturedRef.current = true;
+        } catch(e) {}
+      }
+
+      return () => cancelAnimationFrame(animationId);
+    } else {
+      // Static rendering (no animation effects)
+      const result = renderCurrentFrameToCanvas(undefined, true);
+
+      // Capture frame for AI if not already captured
+      if (result && !frameCapturedRef.current && onFrame) {
+        try {
+          const base64 = result.finalCanvas.toDataURL('image/png').split(',')[1];
+          onFrame(base64);
+          frameCapturedRef.current = true;
+        } catch(e) {}
+      }
     }
   }, [isStaticImage, isLoading, config, displaySize, renderCurrentFrameToCanvas, onFrame]);
 
@@ -425,8 +477,22 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     if (isStaticImage || isPlaying || isLoading || frames.length === 0) return;
     if (!compositionCanvasRef.current || !canvasRef.current) return;
 
-    // Re-render the current frame with updated config
-    renderCurrentFrameToCanvas(undefined, true);
+    // Check if animation effects need continuous updates
+    const needsAnimationLoop = config.animationEffects && hasAnimationEffects(config.animationEffects);
+
+    if (needsAnimationLoop) {
+      // Animation effects need continuous rendering even when paused
+      let animationId: number;
+      const animate = () => {
+        renderCurrentFrameToCanvas(undefined, true, Date.now());
+        animationId = requestAnimationFrame(animate);
+      };
+      animationId = requestAnimationFrame(animate);
+      return () => cancelAnimationFrame(animationId);
+    } else {
+      // Re-render the current frame with updated config
+      renderCurrentFrameToCanvas(undefined, true);
+    }
   }, [isStaticImage, isPlaying, isLoading, frames.length, config, displaySize, renderCurrentFrameToCanvas]);
 
   // 2b. Render Loop (Playback for animated GIFs)
@@ -464,7 +530,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         }
 
         // --- RENDER ASCII TO SCREEN ---
-        const renderResult = renderCurrentFrameToCanvas(undefined, true);
+        const renderResult = renderCurrentFrameToCanvas(undefined, true, timestamp);
 
         // AI Frame Capture (Once per file load)
         if (renderResult && !frameCapturedRef.current && onFrame) {
