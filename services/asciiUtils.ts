@@ -134,20 +134,19 @@ export interface AsciiResult {
 
 /**
  * Maps a grayscale value (0-255) to a character using density-calibrated mapping.
- * Uses gamma-corrected luminance and finds the character whose visual density
- * best matches the target brightness.
+ * Finds the character whose visual density best matches the target brightness.
+ * Note: sRGB input is already perceptually encoded, so we use direct mapping
+ * with calibrated character densities for accurate luminance representation.
  */
 const getCharByDensity = (
   gray: number,
   densityArray: { char: string; density: number }[],
   invert: boolean
 ): string => {
-  // Apply gamma correction for perceptually linear mapping
-  const correctedGray = gammaCorrect(gray);
-
   // Convert to target density (0 = dark/dense, 1 = light/empty)
   // Gray 0 = black = need dense character, Gray 255 = white = need empty character
-  let targetDensity = 1 - (correctedGray / 255);
+  // sRGB is already perceptually encoded, so direct mapping works well
+  let targetDensity = 1 - (gray / 255);
 
   if (invert) {
     targetDensity = 1 - targetDensity;
@@ -318,8 +317,7 @@ export const convertToAscii = (
         const oldGray = grayValues[idx];
 
         // Find the character that would be selected and its target gray
-        const correctedGray = gammaCorrect(oldGray);
-        let targetDensity = 1 - (correctedGray / 255);
+        let targetDensity = 1 - (oldGray / 255);
         if (config.invert) targetDensity = 1 - targetDensity;
 
         // Quantize to nearest available density level
@@ -335,7 +333,7 @@ export const convertToAscii = (
 
         // Calculate quantization error in gray space
         const quantizedDensity = config.invert ? closestDensity : (1 - closestDensity);
-        const quantizedGray = inverseGamma(quantizedDensity * 255);
+        const quantizedGray = quantizedDensity * 255;
         const error = oldGray - quantizedGray;
 
         // Distribute error to neighbors (Floyd-Steinberg coefficients)

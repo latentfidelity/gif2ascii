@@ -55,11 +55,10 @@ Source files are in the project root (no `src/` directory):
 
 ### ASCII Conversion Pipeline
 
-`resizeAndGetImageData()` → scales source with high-quality smoothing + optional sharpening → `convertToAscii()` → gamma-corrected luminance mapping with density-calibrated characters + optional dithering
+`resizeAndGetImageData()` → scales source with high-quality smoothing + optional sharpening → `convertToAscii()` → density-calibrated character mapping + optional dithering
 
 **Quality Features:**
-- **Gamma Correction**: Applies sRGB gamma (2.2) for perceptually accurate luminance mapping
-- **Character Density Calibration**: Characters are mapped by their actual visual density (pixel coverage), not linear position
+- **Character Density Calibration**: Characters are mapped by their actual visual density (pixel coverage), not linear position in the character string
 - **Floyd-Steinberg Dithering**: Optional error-diffusion dithering for smoother gradients in ASCII output
 - **Pre-sharpening Filter**: Unsharp mask applied before downsampling to preserve edge details
 - **High-Quality Downsampling**: Uses `imageSmoothingQuality: 'high'` for better detail retention
