@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState, useDeferredValue, useCallback } from 'react';
-import { Settings, RefreshCcw, Layers, Monitor, RotateCcw, Link, ChevronDown, Palette, SlidersHorizontal, Type, Download } from 'lucide-react';
+import { Settings, RefreshCcw, Layers, Monitor, RotateCcw, Link, ChevronDown, Palette, SlidersHorizontal, Type, Download, Sparkles } from 'lucide-react';
 import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
 import TenorSearch from './components/TenorSearch';
-import { AsciiConfig, AppState } from './types';
-import { DEFAULT_CHARS, CHAR_PRESETS } from './services/asciiUtils';
+import { AsciiConfig, AppState, PostProcessingConfig } from './types';
+import { DEFAULT_CHARS, CHAR_PRESETS, COLOR_PALETTES } from './services/asciiUtils';
 
 const DEFAULT_DENSITY_CELL_WIDTH = 5;
 
@@ -26,6 +26,15 @@ const App: React.FC = () => {
   const [saturation, setSaturation] = useState(0);
   const [dithering, setDithering] = useState(false);
   const [sharpness, setSharpness] = useState(50);
+  const [colorPalette, setColorPalette] = useState('none');
+  const [postProcessing, setPostProcessing] = useState<PostProcessingConfig>({
+    scanlines: 0,
+    glow: 0,
+    chromaticAberration: 0,
+    noise: 0,
+    vignette: 0,
+    flicker: 0
+  });
   const [export2x, setExport2x] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -43,6 +52,7 @@ const App: React.FC = () => {
     colors: false,
     adjustments: false,
     characters: false,
+    effects: false,
     export: false,
   });
 
@@ -77,8 +87,10 @@ const App: React.FC = () => {
     contrast,
     saturation,
     dithering,
-    sharpness
-  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor, brightness, contrast, saturation, dithering, sharpness]);
+    sharpness,
+    colorPalette,
+    postProcessing
+  }), [density, chars, color, bgColor, invert, fontAspectRatio, overlayOpacity, useSourceColor, brightness, contrast, saturation, dithering, sharpness, colorPalette, postProcessing]);
 
   // Defer expensive config updates to keep sliders responsive
   const deferredConfig = useDeferredValue(config);
@@ -152,6 +164,15 @@ const App: React.FC = () => {
     setSaturation(0);
     setDithering(false);
     setSharpness(50);
+    setColorPalette('none');
+    setPostProcessing({
+      scanlines: 0,
+      glow: 0,
+      chromaticAberration: 0,
+      noise: 0,
+      vignette: 0,
+      flicker: 0
+    });
     setExport2x(false);
     setLockOutputAspect(true);
     if (inputSize) {
@@ -463,6 +484,21 @@ const App: React.FC = () => {
                       <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${invert ? 'translate-x-6' : 'translate-x-0'}`} />
                     </button>
                   </div>
+
+                  {/* Color Palette */}
+                  <div className={`space-y-2 ${!useSourceColor ? 'opacity-40 pointer-events-none' : ''}`}>
+                    <label className="text-xs text-zinc-400 block">Color Palette</label>
+                    <select
+                      value={colorPalette}
+                      onChange={(e) => setColorPalette(e.target.value)}
+                      disabled={!useSourceColor}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                      {Object.entries(COLOR_PALETTES).map(([id, palette]) => (
+                        <option key={id} value={id}>{palette.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>
@@ -619,6 +655,103 @@ const App: React.FC = () => {
                       value={chars}
                       onChange={(e) => setChars(e.target.value)}
                       className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* EFFECTS SECTION */}
+            <div className="border border-zinc-800 rounded-lg overflow-hidden">
+              <button
+                onClick={() => toggleSection('effects')}
+                className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-zinc-300">
+                  <Sparkles size={14} />
+                  Effects
+                </span>
+                <ChevronDown size={16} className={`text-zinc-400 transition-transform ${expandedSections.effects ? 'rotate-180' : ''}`} />
+              </button>
+              {expandedSections.effects && (
+                <div className="p-3 space-y-4 border-t border-zinc-800">
+                  {/* Scanlines */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>CRT Scanlines</span>
+                      <span>{postProcessing.scanlines}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={postProcessing.scanlines}
+                      onChange={(e) => setPostProcessing(p => ({ ...p, scanlines: Number(e.target.value) }))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Glow */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>Phosphor Glow</span>
+                      <span>{postProcessing.glow}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={postProcessing.glow}
+                      onChange={(e) => setPostProcessing(p => ({ ...p, glow: Number(e.target.value) }))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Chromatic Aberration */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>RGB Split</span>
+                      <span>{postProcessing.chromaticAberration}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={postProcessing.chromaticAberration}
+                      onChange={(e) => setPostProcessing(p => ({ ...p, chromaticAberration: Number(e.target.value) }))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Noise */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>Static Noise</span>
+                      <span>{postProcessing.noise}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={postProcessing.noise}
+                      onChange={(e) => setPostProcessing(p => ({ ...p, noise: Number(e.target.value) }))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Vignette */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs text-zinc-400">
+                      <span>Vignette</span>
+                      <span>{postProcessing.vignette}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={postProcessing.vignette}
+                      onChange={(e) => setPostProcessing(p => ({ ...p, vignette: Number(e.target.value) }))}
+                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     />
                   </div>
                 </div>

@@ -33,6 +33,153 @@ export const CHAR_PRESETS: { name: string; chars: string }[] = [
 const GAMMA = 2.2;
 
 /**
+ * Color palette definitions for retro/artistic effects.
+ * Each palette is an array of [R, G, B] values.
+ */
+export const COLOR_PALETTES: Record<string, { name: string; colors: [number, number, number][] }> = {
+  none: {
+    name: 'None',
+    colors: []
+  },
+  gameboy: {
+    name: 'Gameboy',
+    colors: [
+      [15, 56, 15],      // Darkest green
+      [48, 98, 48],      // Dark green
+      [139, 172, 15],    // Light green
+      [155, 188, 15]     // Lightest green
+    ]
+  },
+  c64: {
+    name: 'Commodore 64',
+    colors: [
+      [0, 0, 0],         // Black
+      [255, 255, 255],   // White
+      [136, 0, 0],       // Red
+      [170, 255, 238],   // Cyan
+      [204, 68, 204],    // Purple
+      [0, 204, 85],      // Green
+      [0, 0, 170],       // Blue
+      [238, 238, 119],   // Yellow
+      [221, 136, 85],    // Orange
+      [102, 68, 0],      // Brown
+      [255, 119, 119],   // Light red
+      [51, 51, 51],      // Dark grey
+      [119, 119, 119],   // Grey
+      [170, 255, 102],   // Light green
+      [0, 136, 255],     // Light blue
+      [187, 187, 187]    // Light grey
+    ]
+  },
+  cga: {
+    name: 'CGA',
+    colors: [
+      [0, 0, 0],         // Black
+      [255, 85, 255],    // Magenta
+      [85, 255, 255],    // Cyan
+      [255, 255, 255]    // White
+    ]
+  },
+  neon: {
+    name: 'Neon',
+    colors: [
+      [0, 0, 0],         // Black
+      [255, 0, 128],     // Hot pink
+      [0, 255, 255],     // Cyan
+      [255, 255, 0],     // Yellow
+      [128, 0, 255],     // Purple
+      [0, 255, 128],     // Mint
+      [255, 128, 0],     // Orange
+      [255, 255, 255]    // White
+    ]
+  },
+  synthwave: {
+    name: 'Synthwave',
+    colors: [
+      [10, 10, 30],      // Dark blue-black
+      [255, 0, 128],     // Hot pink
+      [128, 0, 255],     // Purple
+      [0, 255, 255],     // Cyan
+      [255, 128, 0],     // Orange
+      [255, 0, 255],     // Magenta
+      [0, 128, 255]      // Electric blue
+    ]
+  },
+  amber: {
+    name: 'Amber Monitor',
+    colors: [
+      [0, 0, 0],         // Black
+      [64, 32, 0],       // Dark amber
+      [128, 64, 0],      // Medium amber
+      [255, 176, 0],     // Bright amber
+      [255, 204, 64]     // Light amber
+    ]
+  },
+  green: {
+    name: 'Green Monitor',
+    colors: [
+      [0, 0, 0],         // Black
+      [0, 48, 0],        // Dark green
+      [0, 96, 0],        // Medium green
+      [0, 192, 0],       // Bright green
+      [64, 255, 64]      // Light green
+    ]
+  },
+  grayscale: {
+    name: 'Grayscale',
+    colors: [
+      [0, 0, 0],
+      [64, 64, 64],
+      [128, 128, 128],
+      [192, 192, 192],
+      [255, 255, 255]
+    ]
+  }
+};
+
+/**
+ * Finds the closest color in a palette to the given RGB value.
+ */
+const findClosestPaletteColor = (
+  r: number, g: number, b: number,
+  palette: [number, number, number][]
+): [number, number, number] => {
+  let minDist = Infinity;
+  let closest = palette[0];
+
+  for (const color of palette) {
+    // Use weighted RGB distance for better perceptual matching
+    const dr = r - color[0];
+    const dg = g - color[1];
+    const db = b - color[2];
+    // Human eye is more sensitive to green, less to blue
+    const dist = dr * dr * 0.299 + dg * dg * 0.587 + db * db * 0.114;
+
+    if (dist < minDist) {
+      minDist = dist;
+      closest = color;
+    }
+  }
+
+  return closest;
+};
+
+/**
+ * Applies a color palette to an RGB color.
+ * Returns the original color if palette is empty/none.
+ */
+export const applyPaletteToColor = (
+  r: number, g: number, b: number,
+  paletteId: string
+): [number, number, number] => {
+  const palette = COLOR_PALETTES[paletteId];
+  if (!palette || palette.colors.length === 0) {
+    return [r, g, b];
+  }
+  return findClosestPaletteColor(r, g, b, palette.colors);
+};
+
+/**
  * Pre-computed character density map for common characters.
  * Values represent approximate visual density (0 = empty, 1 = solid).
  * Measured by calculating pixel coverage of each character rendered in a monospace font.
@@ -372,7 +519,11 @@ export const convertToAscii = (
         // Use density-calibrated mapping
         asciiStr += getCharByDensity(gray, densityArray, config.invert);
         if (colors) {
-          const [adjR, adjG, adjB] = adjustedColors[idx];
+          let [adjR, adjG, adjB] = adjustedColors[idx];
+          // Apply color palette if specified
+          if (config.colorPalette && config.colorPalette !== 'none') {
+            [adjR, adjG, adjB] = applyPaletteToColor(adjR, adjG, adjB, config.colorPalette);
+          }
           rowColors.push(rgbToHex(Math.round(adjR), Math.round(adjG), Math.round(adjB)));
         }
       }

@@ -5,6 +5,7 @@ import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { AsciiConfig } from '../types';
 import { resizeAndGetImageData, convertToAscii, AsciiResult } from '../services/asciiUtils';
 import { exportVideo, downloadBlob, isMP4ExportSupported } from '../services/videoExport';
+import { applyPostProcessing, hasPostProcessing } from '../services/postProcessing';
 
 // Check if buffer is a GIF by magic bytes
 const isGifBuffer = (buffer: ArrayBuffer): boolean => {
@@ -391,7 +392,12 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
          }
          finalCtx.restore();
      }
-     
+
+     // Apply post-processing effects (CRT, glow, etc.)
+     if (includeOverlay && config.postProcessing && hasPostProcessing(config.postProcessing)) {
+         applyPostProcessing(finalCanvas, config.postProcessing, Date.now());
+     }
+
      return { finalCtx, finalCanvas };
   }, [config]);
 

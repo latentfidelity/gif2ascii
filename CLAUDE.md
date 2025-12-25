@@ -89,6 +89,28 @@ The conversion pipeline supports real-time image adjustments applied before ASCI
 - **Sharpness**: 0 to 100 (unsharp mask strength for edge enhancement)
 - **Dithering**: Toggle for Floyd-Steinberg error diffusion (smoother gradients)
 
+### Color Palettes
+
+Retro color palette quantization (`services/asciiUtils.ts`):
+- **None**: Original colors
+- **Gameboy**: 4-color green monochrome
+- **Commodore 64**: 16-color C64 palette
+- **CGA**: 4-color cyan/magenta/white
+- **Neon**: Vibrant neon colors
+- **Synthwave**: Purple/pink/cyan retrowave
+- **Amber Monitor**: Amber phosphor terminal
+- **Green Monitor**: Green phosphor terminal
+- **Grayscale**: 5-level grayscale
+
+### Post-Processing Effects
+
+CRT and visual effects applied after ASCII rendering (`services/postProcessing.ts`):
+- **CRT Scanlines**: Horizontal line overlay simulating CRT monitors
+- **Phosphor Glow**: Bloom/glow effect using blur and additive blending
+- **RGB Split**: Chromatic aberration with horizontal RGB channel offset
+- **Static Noise**: Random noise overlay
+- **Vignette**: Radial edge darkening
+
 ### GIF Frame Handling
 
 Uses a composition canvas pattern: each frame's patch is drawn onto a persistent canvas, respecting GIF disposal types. The composition canvas represents the current visual state that gets converted to ASCII.

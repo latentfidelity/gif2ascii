@@ -1,3 +1,12 @@
+export interface PostProcessingConfig {
+  scanlines: number;        // 0-100: CRT scanline intensity
+  glow: number;             // 0-100: Phosphor glow/bloom intensity
+  chromaticAberration: number; // 0-100: RGB split effect
+  noise: number;            // 0-100: Static noise overlay
+  vignette: number;         // 0-100: Edge darkening
+  flicker: number;          // 0-100: Brightness flicker (for animation)
+}
+
 export interface AsciiConfig {
   resolution: number; // Width in characters
   chars: string; // The character set (darkest to lightest)
@@ -12,6 +21,8 @@ export interface AsciiConfig {
   saturation: number; // Saturation adjustment (-100 to 100, 0 is neutral)
   dithering: boolean; // Enable Floyd-Steinberg dithering for smoother gradients
   sharpness: number; // Pre-sharpening filter strength (0-100, 0 is off)
+  colorPalette: string; // Color palette ID for retro effects (e.g., 'gameboy', 'c64', 'none')
+  postProcessing: PostProcessingConfig; // CRT and visual effects
 }
 
 export interface AsciiFrame {
