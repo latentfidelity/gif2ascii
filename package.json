@@ -1,7 +1,15 @@
 {
   "name": "gif2ascii",
-  "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Convert GIFs and images to ASCII art with real-time preview and export",
+  "author": "latentfidelity",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/latentfidelity/gif2ascii.git"
+  },
+  "homepage": "https://latentfidelity.github.io/gif2ascii",
+  "keywords": ["ascii", "ascii-art", "gif", "image-processing", "cli", "react"],
   "type": "module",
   "bin": {
     "gif2ascii": "./cli/dist/index.js"

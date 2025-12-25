@@ -15,7 +15,10 @@ dist-ssr
 # Environment variables
 .env
 .env.*
+
+# Local settings
 settings.local.json
+.claude/
 
 # Editor directories and files
 .vscode/*

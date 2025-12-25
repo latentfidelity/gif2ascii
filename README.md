@@ -1,29 +1,50 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+# gif2ascii
+
+Convert GIFs and images to ASCII art with real-time preview and export capabilities.
+
+[Live Demo](https://latentfidelity.github.io/gif2ascii) · [Report Bug](https://github.com/latentfidelity/gif2ascii/issues)
+
 </div>
 
-# Run and deploy your AI Studio app
+## Features
 
-This contains everything you need to run your app locally.
+- **Multiple formats**: GIF, PNG, JPEG, WebP support
+- **13 character presets**: Standard, Dense, Blocks, Braille, Katakana, and more
+- **Color modes**: Monochrome, source colors, or custom foreground/background
+- **Image adjustments**: Brightness, contrast, saturation controls
+- **Export options**: GIF, MP4, WebM, PNG
+- **Tenor integration**: Search and convert GIFs directly (requires API key)
+- **CLI tool**: Terminal-based playback with ANSI colors and Sixel support
 
-View your app in AI Studio: https://ai.studio/apps/drive/1eDCCZhjLqW_h6ODN-J0vt1XowRZ26Gp1
+## Quick Start
 
-## Run Locally
+```bash
+npm install
+npm run dev
+```
 
-**Prerequisites:**  Node.js
+Open http://localhost:3000
 
+## CLI Usage
 
-1. Install dependencies:
-   `npm install`
-2. Run the app:
-   `npm run dev`
+```bash
+npm run build:cli
+npm link
+gif2ascii input.gif --source-color
+```
 
-## Environment
+See `gif2ascii --help` for all options.
 
-To enable Tenor search in the upload screen, add a `.env` file in the project root:
+## Environment Variables
+
+For Tenor GIF search, create a `.env` file:
 
 ```
 VITE_TENOR_API_KEY=your_tenor_key_here
 ```
 
-Restart the dev server after setting the key.
+## License
+
+[MIT](LICENSE)

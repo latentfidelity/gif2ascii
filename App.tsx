@@ -6,7 +6,6 @@ import TenorSearch from './components/TenorSearch';
 import { AsciiConfig, AppState } from './types';
 import { DEFAULT_CHARS, CHAR_PRESETS } from './services/asciiUtils';
 
-const logoUrl = new URL('./lofilogo.png', import.meta.url).href;
 const DEFAULT_DENSITY_CELL_WIDTH = 5;
 
 const App: React.FC = () => {
@@ -223,14 +222,7 @@ const App: React.FC = () => {
       <header className="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-800 shadow-sm bg-zinc-900">
-              <img
-                src={logoUrl}
-                alt="Gif2Ascii logo"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <h1 className="font-bold text-xl tracking-tight">Gif2Ascii</h1>
+            <h1 className="font-bold text-xl tracking-tight">gif2ascii</h1>
           </div>
           <div className="flex items-center gap-4" />
         </div>
