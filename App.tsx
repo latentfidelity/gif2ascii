@@ -553,8 +553,8 @@ const App: React.FC = () => {
                     </div>
                     <input
                       type="range"
-                      min="-100"
-                      max="100"
+                      min="-300"
+                      max="300"
                       value={brightness}
                       onChange={(e) => setBrightness(Number(e.target.value))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -569,8 +569,8 @@ const App: React.FC = () => {
                     </div>
                     <input
                       type="range"
-                      min="-100"
-                      max="100"
+                      min="-300"
+                      max="300"
                       value={contrast}
                       onChange={(e) => setContrast(Number(e.target.value))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -585,8 +585,8 @@ const App: React.FC = () => {
                     </div>
                     <input
                       type="range"
-                      min="-100"
-                      max="100"
+                      min="-300"
+                      max="300"
                       value={saturation}
                       onChange={(e) => setSaturation(Number(e.target.value))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"

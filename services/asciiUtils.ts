@@ -355,32 +355,32 @@ const rgbToHex = (r: number, g: number, b: number): string => {
 
 /**
  * Applies brightness adjustment to a value.
- * brightness: -100 to 100, where 0 is neutral
+ * brightness: -300 to 300, where 0 is neutral
  */
 const applyBrightness = (value: number, brightness: number): number => {
-  // Convert brightness from -100..100 to -255..255 range
+  // Convert brightness from -300..300 to -765..765 range (3x the color range)
   const adjustment = (brightness / 100) * 255;
   return Math.max(0, Math.min(255, value + adjustment));
 };
 
 /**
  * Applies contrast adjustment to a value.
- * contrast: -100 to 100, where 0 is neutral
+ * contrast: -300 to 300, where 0 is neutral
  */
 const applyContrast = (value: number, contrast: number): number => {
-  // Convert contrast to a factor (0.5 to 2.0 range for -100 to 100)
-  const factor = (contrast + 100) / 100;
+  // Convert contrast to a factor (0.25 to 4.0 range for -300 to 300)
+  const factor = (contrast + 300) / 300;
   // Apply contrast around midpoint (128)
   return Math.max(0, Math.min(255, (value - 128) * factor + 128));
 };
 
 /**
  * Applies saturation adjustment to RGB values.
- * saturation: -100 to 100, where 0 is neutral, -100 is grayscale
+ * saturation: -300 to 300, where 0 is neutral, -100 is grayscale
  */
 const applySaturation = (r: number, g: number, b: number, saturation: number): [number, number, number] => {
   const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-  const factor = (saturation + 100) / 100;
+  const factor = (saturation + 300) / 300;
   return [
     Math.max(0, Math.min(255, gray + (r - gray) * factor)),
     Math.max(0, Math.min(255, gray + (g - gray) * factor)),

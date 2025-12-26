@@ -85,9 +85,9 @@ Characters map dark to light. The `invert` flag reverses this mapping. The `useS
 ### Image Adjustments
 
 The conversion pipeline supports real-time image adjustments applied before ASCII conversion:
-- **Brightness**: -100 to +100 (additive adjustment)
-- **Contrast**: -100 to +100 (factor around midpoint 128)
-- **Saturation**: -100 to +100 (-100 = grayscale)
+- **Brightness**: -300 to +300 (additive adjustment)
+- **Contrast**: -300 to +300 (factor around midpoint 128)
+- **Saturation**: -300 to +300 (-100 = grayscale)
 - **Sharpness**: 0 to 100 (unsharp mask strength for edge enhancement)
 - **Dithering**: Toggle for Floyd-Steinberg error diffusion (smoother gradients)
 
