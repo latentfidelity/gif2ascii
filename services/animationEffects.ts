@@ -4,8 +4,8 @@
  */
 
 export interface AnimationEffectsConfig {
-  matrixRain: number;      // 0-100: Matrix-style falling characters intensity
-  waveDistortion: number;  // 0-100: Horizontal wave distortion
+  matrixRain: number;      // 0-300: Matrix-style falling characters intensity
+  waveDistortion: number;  // 0-300: Horizontal wave distortion
   typingReveal: boolean;   // Typing effect for static images (reveal characters over time)
 }
 

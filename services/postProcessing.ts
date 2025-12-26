@@ -5,12 +5,12 @@
  */
 
 export interface PostProcessingConfig {
-  scanlines: number;        // 0-100: CRT scanline intensity
-  glow: number;             // 0-100: Phosphor glow/bloom intensity
-  chromaticAberration: number; // 0-100: RGB split effect
-  noise: number;            // 0-100: Static noise overlay
-  vignette: number;         // 0-100: Edge darkening
-  flicker: number;          // 0-100: Brightness flicker (for animation)
+  scanlines: number;        // 0-300: CRT scanline intensity
+  glow: number;             // 0-300: Phosphor glow/bloom intensity
+  chromaticAberration: number; // 0-300: RGB split effect
+  noise: number;            // 0-300: Static noise overlay
+  vignette: number;         // 0-300: Edge darkening
+  flicker: number;          // 0-300: Brightness flicker (for animation)
 }
 
 export const DEFAULT_POST_PROCESSING: PostProcessingConfig = {
@@ -147,7 +147,9 @@ const applyVignette = (
   const centerX = width / 2;
   const centerY = height / 2;
   const radius = Math.sqrt(centerX * centerX + centerY * centerY);
-  const innerRadius = radius * (1 - intensity / 100);
+  // Clamp innerRadius to minimum 0 for extreme values
+  const innerRadius = Math.max(0, radius * (1 - intensity / 100));
+  const alpha = Math.min(1, (intensity / 100) * 0.8);
 
   const gradient = ctx.createRadialGradient(
     centerX, centerY, innerRadius,
@@ -155,7 +157,7 @@ const applyVignette = (
   );
 
   gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-  gradient.addColorStop(1, `rgba(0, 0, 0, ${(intensity / 100) * 0.8})`);
+  gradient.addColorStop(1, `rgba(0, 0, 0, ${alpha})`);
 
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);

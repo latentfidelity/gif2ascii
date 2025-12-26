@@ -602,7 +602,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={sharpness}
                       onChange={(e) => setSharpness(Number(e.target.value))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -695,7 +695,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={postProcessing.scanlines}
                       onChange={(e) => setPostProcessing(p => ({ ...p, scanlines: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -711,7 +711,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={postProcessing.glow}
                       onChange={(e) => setPostProcessing(p => ({ ...p, glow: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -727,7 +727,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={postProcessing.chromaticAberration}
                       onChange={(e) => setPostProcessing(p => ({ ...p, chromaticAberration: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -743,7 +743,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={postProcessing.noise}
                       onChange={(e) => setPostProcessing(p => ({ ...p, noise: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -759,7 +759,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={postProcessing.vignette}
                       onChange={(e) => setPostProcessing(p => ({ ...p, vignette: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -775,7 +775,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={postProcessing.flicker}
                       onChange={(e) => setPostProcessing(p => ({ ...p, flicker: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -798,7 +798,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={animationEffects.matrixRain}
                       onChange={(e) => setAnimationEffects(a => ({ ...a, matrixRain: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
@@ -814,7 +814,7 @@ const App: React.FC = () => {
                     <input
                       type="range"
                       min="0"
-                      max="100"
+                      max="300"
                       value={animationEffects.waveDistortion}
                       onChange={(e) => setAnimationEffects(a => ({ ...a, waveDistortion: Number(e.target.value) }))}
                       className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"

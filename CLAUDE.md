@@ -88,7 +88,7 @@ The conversion pipeline supports real-time image adjustments applied before ASCI
 - **Brightness**: -300 to +300 (additive adjustment)
 - **Contrast**: -300 to +300 (factor around midpoint 128)
 - **Saturation**: -300 to +300 (-100 = grayscale)
-- **Sharpness**: 0 to 100 (unsharp mask strength for edge enhancement)
+- **Sharpness**: 0 to 300 (unsharp mask strength for edge enhancement)
 - **Dithering**: Toggle for Floyd-Steinberg error diffusion (smoother gradients)
 
 ### Color Palettes
@@ -106,7 +106,7 @@ Retro color palette quantization (`services/asciiUtils.ts`):
 
 ### Post-Processing Effects
 
-CRT and visual effects applied after ASCII rendering (`services/postProcessing.ts`):
+CRT and visual effects applied after ASCII rendering (`services/postProcessing.ts`), all 0-300 intensity:
 - **CRT Scanlines**: Horizontal line overlay simulating CRT monitors
 - **Phosphor Glow**: Bloom/glow effect using blur and additive blending
 - **RGB Split**: Chromatic aberration with horizontal RGB channel offset
@@ -117,8 +117,8 @@ CRT and visual effects applied after ASCII rendering (`services/postProcessing.t
 ### Animation Effects
 
 Animated overlays and effects requiring continuous updates (`services/animationEffects.ts`):
-- **Matrix Rain**: Falling Japanese/alphanumeric characters overlay (0-100 intensity)
-- **Wave Distortion**: Horizontal sinusoidal pixel displacement (0-100 intensity)
+- **Matrix Rain**: Falling Japanese/alphanumeric characters overlay (0-300 intensity)
+- **Wave Distortion**: Horizontal sinusoidal pixel displacement (0-300 intensity)
 - **Typing Reveal**: Typewriter-style character reveal with blinking cursor (static images)
 
 These effects run in a continuous render loop when enabled, even for static images or paused GIFs.
