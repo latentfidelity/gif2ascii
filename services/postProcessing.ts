@@ -54,12 +54,14 @@ const applyGlow = (
   if (intensity <= 0) return;
 
   const blurAmount = (intensity / 100) * 8;
-  const alpha = (intensity / 100) * 0.5;
+  // Cap alpha to prevent excessive wash on dark areas
+  const alpha = Math.min(0.35, (intensity / 100) * 0.4);
 
   ctx.save();
   ctx.filter = `blur(${blurAmount}px)`;
   ctx.globalAlpha = alpha;
-  ctx.globalCompositeOperation = 'lighter';
+  // 'screen' preserves true black (black + x = x) unlike 'lighter' which washes everything
+  ctx.globalCompositeOperation = 'screen';
   ctx.drawImage(canvas, 0, 0);
   ctx.restore();
 };
@@ -123,11 +125,18 @@ const applyNoise = (
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
 
+  // Luminance threshold: skip near-black pixels to preserve true blacks
+  const BLACK_THRESHOLD = 8;
+
   for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    // Skip near-black pixels — don't add noise to the background
+    if (r < BLACK_THRESHOLD && g < BLACK_THRESHOLD && b < BLACK_THRESHOLD) continue;
+
     const noise = (Math.random() - 0.5) * 255 * alpha;
-    data[i] = Math.max(0, Math.min(255, data[i] + noise));
-    data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
-    data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
+    data[i] = Math.max(0, Math.min(255, r + noise));
+    data[i + 1] = Math.max(0, Math.min(255, g + noise));
+    data[i + 2] = Math.max(0, Math.min(255, b + noise));
   }
 
   ctx.putImageData(imageData, 0, 0);
