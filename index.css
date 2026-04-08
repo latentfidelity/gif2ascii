@@ -170,6 +170,7 @@ pre {
   gap: var(--space-md);
   align-items: center;
   min-width: 0;
+  overflow: hidden;
 }
 
 .col-tenor {
@@ -1142,6 +1143,10 @@ input[type="text"]:focus {
   scrollbar-width: none;
   padding: var(--space-xs) 0;
   -webkit-overflow-scrolling: touch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  align-self: stretch;
 }
 
 .preset-bar::-webkit-scrollbar {
