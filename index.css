@@ -1134,6 +1134,59 @@ input[type="text"]:focus {
   display: none;
 }
 
+/* --- 17. PRESET BAR --- */
+.preset-bar {
+  display: flex;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: var(--space-xs) 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.preset-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.preset-chip {
+  font-family: 'Space Mono', monospace;
+  font-size: var(--label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-visible);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+  outline: none;
+  line-height: 1.2;
+}
+
+.preset-chip:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.preset-chip:focus-visible {
+  outline: 1px solid var(--text-secondary);
+  outline-offset: 2px;
+}
+
+.preset-chip--active {
+  background: var(--text-display);
+  color: var(--black);
+  border-color: var(--text-display);
+}
+
+.preset-chip--active:hover {
+  opacity: 0.9;
+  color: var(--black);
+  border-color: var(--text-display);
+}
+
 /* --- 17. HIDDEN FILE INPUT --- */
 .sr-only {
   position: absolute;

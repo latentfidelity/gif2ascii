@@ -5,6 +5,7 @@ import AsciiPlayer from './components/AsciiPlayer';
 import TenorSearch from './components/TenorSearch';
 import { AsciiConfig, AppState, PostProcessingConfig, AnimationEffectsConfig } from './types';
 import { DEFAULT_CHARS, CHAR_PRESETS, COLOR_PALETTES } from './services/asciiUtils';
+import { STYLE_PRESETS, StylePreset } from './services/stylePresets';
 
 const DEFAULT_DENSITY_CELL_WIDTH = 5;
 
@@ -50,6 +51,7 @@ const App: React.FC = () => {
   const userAdjustedRef = useRef(false);
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const [controlsHeight, setControlsHeight] = useState<number | null>(null);
+  const [activePresetId, setActivePresetId] = useState<string>('default');
 
   // Section collapse state
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -156,34 +158,30 @@ const App: React.FC = () => {
     setOutputHeight(0);
   };
 
+  const applyPreset = useCallback((preset: StylePreset) => {
+    const c = preset.config;
+    if (c.resolution !== undefined) setDensity(c.resolution);
+    if (c.chars !== undefined) setChars(c.chars);
+    if (c.color !== undefined) setColor(c.color);
+    if (c.invert !== undefined) setInvert(!c.invert);
+    if (c.backgroundColor !== undefined) setBgColor(c.backgroundColor);
+    if (c.fontAspectRatio !== undefined) setFontAspectRatio(c.fontAspectRatio);
+    if (c.overlayOpacity !== undefined) setOverlayOpacity(c.overlayOpacity);
+    if (c.useSourceColor !== undefined) setUseSourceColor(c.useSourceColor);
+    if (c.brightness !== undefined) setBrightness(c.brightness);
+    if (c.contrast !== undefined) setContrast(c.contrast);
+    if (c.saturation !== undefined) setSaturation(c.saturation);
+    if (c.dithering !== undefined) setDithering(c.dithering);
+    if (c.sharpness !== undefined) setSharpness(c.sharpness);
+    if (c.colorPalette !== undefined) setColorPalette(c.colorPalette);
+    if (c.postProcessing !== undefined) setPostProcessing(c.postProcessing);
+    if (c.animationEffects !== undefined) setAnimationEffects(c.animationEffects);
+    setActivePresetId(preset.id);
+  }, []);
+
   const resetSettings = useCallback(() => {
-    setDensity(60);
-    setChars(DEFAULT_CHARS);
-    setColor('#ffffff');
-    setInvert(false);
-    setBgColor('#000000');
-    setFontAspectRatio(0.55);
-    setOverlayOpacity(0);
-    setUseSourceColor(false);
-    setBrightness(0);
-    setContrast(0);
-    setSaturation(0);
-    setDithering(false);
-    setSharpness(50);
-    setColorPalette('none');
-    setPostProcessing({
-      scanlines: 0,
-      glow: 0,
-      chromaticAberration: 0,
-      noise: 0,
-      vignette: 0,
-      flicker: 0
-    });
-    setAnimationEffects({
-      matrixRain: 0,
-      waveDistortion: 0,
-      typingReveal: false
-    });
+    const defaultPreset = STYLE_PRESETS.find(p => p.id === 'default');
+    if (defaultPreset) applyPreset(defaultPreset);
     setExport2x(false);
     setLockOutputAspect(true);
     if (inputSize) {
@@ -191,7 +189,7 @@ const App: React.FC = () => {
       setOutputHeight(inputSize.height);
       setDensity(Math.max(10, Math.round(inputSize.width / DEFAULT_DENSITY_CELL_WIDTH)));
     }
-  }, [inputSize]);
+  }, [inputSize, applyPreset]);
 
   const loadFromUrl = useCallback(async () => {
     if (!urlInput.trim()) return;
@@ -864,6 +862,22 @@ const App: React.FC = () => {
 
         {/* Center Column: Viewer */}
         <div className="col-canvas">
+          {/* Preset Bar */}
+          {appState === AppState.PLAYING && (
+            <div className="preset-bar">
+              {STYLE_PRESETS.map(preset => (
+                <button
+                  key={preset.id}
+                  className={`preset-chip ${activePresetId === preset.id ? 'preset-chip--active' : ''}`}
+                  onClick={() => applyPreset(preset)}
+                  title={preset.description}
+                >
+                  {preset.name}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="card--canvas" style={{ width: '100%' }}>
 
             {appState === AppState.IDLE ? (

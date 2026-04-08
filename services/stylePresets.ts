@@ -1,0 +1,246 @@
+import { AsciiConfig, PostProcessingConfig, AnimationEffectsConfig } from '../types';
+import { DEFAULT_CHARS, CHAR_PRESETS } from './asciiUtils';
+
+/**
+ * A style preset is a complete render configuration that users can
+ * apply with one click. Each preset overrides all config values.
+ */
+export interface StylePreset {
+  id: string;
+  name: string;
+  description: string;
+  config: Partial<AsciiConfig>;
+}
+
+const BLOCK_CHARS = CHAR_PRESETS.find(p => p.name === 'Block Elements')?.chars || '█▉▊▋▌▍▎▏ ';
+const BRAILLE_CHARS = CHAR_PRESETS.find(p => p.name === 'Braille')?.chars || '⣿⢿⡿⣷⣯⣟⡯⢯⣻⣽⣾⣿';
+const KATAKANA_CHARS = CHAR_PRESETS.find(p => p.name === 'Katakana')?.chars || 'アイウエオカキクケコ ';
+const DENSE_CHARS = CHAR_PRESETS.find(p => p.name === 'Dense')?.chars || DEFAULT_CHARS;
+const MINIMAL_CHARS = CHAR_PRESETS.find(p => p.name === 'Minimal Dots')?.chars || '.·: ';
+
+const noPostProcessing: PostProcessingConfig = {
+  scanlines: 0,
+  glow: 0,
+  chromaticAberration: 0,
+  noise: 0,
+  vignette: 0,
+  flicker: 0,
+};
+
+const noAnimationEffects: AnimationEffectsConfig = {
+  matrixRain: 0,
+  waveDistortion: 0,
+  typingReveal: false,
+};
+
+export const STYLE_PRESETS: StylePreset[] = [
+  {
+    id: 'default',
+    name: 'Default',
+    description: 'Clean ASCII with standard characters',
+    config: {
+      resolution: 60,
+      chars: DEFAULT_CHARS,
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      invert: true,
+      fontAspectRatio: 0.55,
+      overlayOpacity: 0,
+      useSourceColor: false,
+      brightness: 0,
+      contrast: 0,
+      saturation: 0,
+      dithering: false,
+      sharpness: 50,
+      colorPalette: 'none',
+      postProcessing: { ...noPostProcessing },
+      animationEffects: { ...noAnimationEffects },
+    },
+  },
+  {
+    id: 'crt-terminal',
+    name: 'CRT Terminal',
+    description: 'Green phosphor monitor with scanlines and glow',
+    config: {
+      resolution: 80,
+      chars: DEFAULT_CHARS,
+      color: '#33ff33',
+      backgroundColor: '#0a0a0a',
+      invert: true,
+      fontAspectRatio: 0.55,
+      overlayOpacity: 0,
+      useSourceColor: false,
+      brightness: 10,
+      contrast: 30,
+      saturation: 0,
+      dithering: false,
+      sharpness: 80,
+      colorPalette: 'none',
+      postProcessing: {
+        scanlines: 120,
+        glow: 80,
+        chromaticAberration: 0,
+        noise: 20,
+        vignette: 60,
+        flicker: 15,
+      },
+      animationEffects: { ...noAnimationEffects },
+    },
+  },
+  {
+    id: 'matrix',
+    name: 'Matrix',
+    description: 'Digital rain cascade with katakana characters',
+    config: {
+      resolution: 90,
+      chars: KATAKANA_CHARS,
+      color: '#00ff41',
+      backgroundColor: '#000000',
+      invert: true,
+      fontAspectRatio: 0.55,
+      overlayOpacity: 0,
+      useSourceColor: false,
+      brightness: -20,
+      contrast: 60,
+      saturation: 0,
+      dithering: false,
+      sharpness: 100,
+      colorPalette: 'none',
+      postProcessing: {
+        scanlines: 40,
+        glow: 60,
+        chromaticAberration: 15,
+        noise: 10,
+        vignette: 40,
+        flicker: 5,
+      },
+      animationEffects: {
+        matrixRain: 150,
+        waveDistortion: 0,
+        typingReveal: false,
+      },
+    },
+  },
+  {
+    id: 'high-contrast',
+    name: 'High Contrast',
+    description: 'Sharp black and white with dense character set',
+    config: {
+      resolution: 70,
+      chars: DENSE_CHARS,
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      invert: true,
+      fontAspectRatio: 0.55,
+      overlayOpacity: 0,
+      useSourceColor: false,
+      brightness: 0,
+      contrast: 120,
+      saturation: 0,
+      dithering: true,
+      sharpness: 150,
+      colorPalette: 'none',
+      postProcessing: { ...noPostProcessing },
+      animationEffects: { ...noAnimationEffects },
+    },
+  },
+  {
+    id: 'color-photo',
+    name: 'Color Photo',
+    description: 'Source colors with block characters for photo-like output',
+    config: {
+      resolution: 100,
+      chars: BLOCK_CHARS,
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      invert: true,
+      fontAspectRatio: 0.55,
+      overlayOpacity: 0,
+      useSourceColor: true,
+      brightness: 10,
+      contrast: 20,
+      saturation: 20,
+      dithering: false,
+      sharpness: 60,
+      colorPalette: 'none',
+      postProcessing: { ...noPostProcessing },
+      animationEffects: { ...noAnimationEffects },
+    },
+  },
+  {
+    id: 'retro-amber',
+    name: 'Retro Amber',
+    description: 'Warm amber CRT with vignette and noise',
+    config: {
+      resolution: 60,
+      chars: DEFAULT_CHARS,
+      color: '#ffb000',
+      backgroundColor: '#1a0e00',
+      invert: true,
+      fontAspectRatio: 0.55,
+      overlayOpacity: 0,
+      useSourceColor: false,
+      brightness: 0,
+      contrast: 20,
+      saturation: 0,
+      dithering: false,
+      sharpness: 50,
+      colorPalette: 'none',
+      postProcessing: {
+        scanlines: 80,
+        glow: 50,
+        chromaticAberration: 0,
+        noise: 30,
+        vignette: 80,
+        flicker: 10,
+      },
+      animationEffects: { ...noAnimationEffects },
+    },
+  },
+  {
+    id: 'minimal',
+    name: 'Minimal',
+    description: 'Sparse dots on dark background — whisper quiet',
+    config: {
+      resolution: 50,
+      chars: MINIMAL_CHARS,
+      color: '#999999',
+      backgroundColor: '#000000',
+      invert: true,
+      fontAspectRatio: 0.55,
+      overlayOpacity: 0,
+      useSourceColor: false,
+      brightness: -30,
+      contrast: 40,
+      saturation: 0,
+      dithering: false,
+      sharpness: 30,
+      colorPalette: 'none',
+      postProcessing: { ...noPostProcessing },
+      animationEffects: { ...noAnimationEffects },
+    },
+  },
+  {
+    id: 'braille-hd',
+    name: 'Braille HD',
+    description: 'Ultra-high resolution with braille Unicode characters',
+    config: {
+      resolution: 120,
+      chars: BRAILLE_CHARS,
+      color: '#e8e8e8',
+      backgroundColor: '#000000',
+      invert: true,
+      fontAspectRatio: 0.55,
+      overlayOpacity: 0,
+      useSourceColor: false,
+      brightness: 0,
+      contrast: 30,
+      saturation: 0,
+      dithering: true,
+      sharpness: 80,
+      colorPalette: 'none',
+      postProcessing: { ...noPostProcessing },
+      animationEffects: { ...noAnimationEffects },
+    },
+  },
+];
