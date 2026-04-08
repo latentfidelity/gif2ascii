@@ -1199,3 +1199,108 @@ input[type="text"]:focus {
   white-space: nowrap;
   border-width: 0;
 }
+
+/* --- 18. KEYBOARD SHORTCUTS OVERLAY --- */
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  animation: fade-in var(--duration-fast) var(--ease);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.shortcuts-panel {
+  background: var(--surface);
+  border: 1px solid var(--border-visible);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xl);
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.shortcuts-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+}
+
+.shortcuts-panel__title {
+  font-family: 'Space Mono', monospace;
+  font-size: var(--body-sm);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.shortcuts-panel__close {
+  background: transparent;
+  border: none;
+  color: var(--text-disabled);
+  font-size: 20px;
+  cursor: pointer;
+  padding: var(--space-2xs);
+  line-height: 1;
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.shortcuts-panel__close:hover {
+  color: var(--text-primary);
+}
+
+.shortcuts-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.shortcuts-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xs) 0;
+}
+
+.shortcuts-panel__keys {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.shortcuts-panel__kbd {
+  font-family: 'Space Mono', monospace;
+  font-size: var(--label);
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-visible);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  min-width: 28px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.shortcuts-panel__action {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: var(--caption);
+  color: var(--text-secondary);
+}
+
+.shortcuts-panel__hint {
+  font-family: 'Space Mono', monospace;
+  font-size: var(--label);
+  color: var(--text-disabled);
+  text-align: center;
+  margin-top: var(--space-lg);
+  letter-spacing: 0.04em;
+}
+

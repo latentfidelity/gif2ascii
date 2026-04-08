@@ -3,6 +3,7 @@ import { Settings, RefreshCcw, Layers, Monitor, RotateCcw, Link, ChevronDown, Pa
 import FileUpload from './components/FileUpload';
 import AsciiPlayer from './components/AsciiPlayer';
 import TenorSearch from './components/TenorSearch';
+import KeyboardShortcuts from './components/KeyboardShortcuts';
 import { AppState } from './types';
 import { DEFAULT_CHARS, CHAR_PRESETS, COLOR_PALETTES } from './services/asciiUtils';
 import { STYLE_PRESETS } from './services/stylePresets';
@@ -133,6 +134,7 @@ const App: React.FC = () => {
 
   return (
     <div className="app-shell">
+      <KeyboardShortcuts />
       {/* Header */}
       <header className="app-header">
         <h1 className="app-header__title">gif2ascii</h1>
