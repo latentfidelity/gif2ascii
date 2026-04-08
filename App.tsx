@@ -255,619 +255,592 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+    <div className="app-shell">
       {/* Header */}
-      <header className="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h1 className="font-bold text-xl tracking-tight">gif2ascii</h1>
-          </div>
-          <div className="flex items-center gap-4" />
-        </div>
+      <header className="app-header">
+        <h1 className="app-header__title">gif2ascii</h1>
       </header>
 
-      <main
-        className="flex-1 max-w-7xl mx-auto w-full p-6 flex flex-col lg:flex-row gap-8"
-        style={{ '--controls-height': controlsHeight ? `${controlsHeight}px` : 'auto' } as React.CSSProperties}
-      >
+      <main className="app-main">
         
         {/* Left Column: Controls */}
-        <div className="lg:w-80 flex flex-col gap-6 shrink-0">
+        <div className="col-controls">
           
-          {/* Manual Controls */}
+          {/* Settings Panel */}
           <div
             ref={controlsRef}
-            className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col gap-6"
+            className="card"
           >
-            <h3 className="text-lg font-bold flex items-center gap-2 text-zinc-300">
-              <Settings size={18} />
-              Render Settings
-            </h3>
+            <div className="settings-header">
+              <Settings size={18} className="settings-header__icon" />
+              <span className="settings-header__title">Render Settings</span>
+            </div>
 
-            {/* OUTPUT SECTION */}
-            <div className="border border-zinc-800 rounded-lg overflow-hidden">
-              <button
-                onClick={() => toggleSection('output')}
-                className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                  <Monitor size={14} />
-                  Output
-                </span>
-                <ChevronDown size={16} className={`text-zinc-400 transition-transform ${expandedSections.output ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.output && (
-                <div className="p-3 space-y-4 border-t border-zinc-800">
-                  {/* Density Slider */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-zinc-400">
-                      <span>Density</span>
-                      <span>{density} cols</span>
+            <div className="settings-sections">
+
+              {/* OUTPUT SECTION */}
+              <div className="section-panel">
+                <button
+                  onClick={() => toggleSection('output')}
+                  className="section-header"
+                >
+                  <span className="section-header__label">
+                    <Monitor size={14} />
+                    Output
+                  </span>
+                  <ChevronDown size={14} className={`section-header__chevron ${expandedSections.output ? 'section-header__chevron--open' : ''}`} />
+                </button>
+                {expandedSections.output && (
+                  <div className="section-body">
+                    {/* Density Slider */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Density</span>
+                        <span className="slider-label__value">{density} cols</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max={maxDensity}
+                        value={density}
+                        onChange={(e) => handleDensityChange(Number(e.target.value))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="10"
-                      max={maxDensity}
-                      value={density}
-                      onChange={(e) => handleDensityChange(Number(e.target.value))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Output Width Slider */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Output Width</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="1"
-                          max={maxOutputWidth}
-                          value={outputWidthPx > 0 ? outputWidthPx : ''}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            if (!isNaN(val) && val > 0) {
-                              handleOutputWidthChange(Math.min(val, maxOutputWidth));
-                            }
-                          }}
-                          disabled={!inputSize}
-                          className="w-16 bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5 text-zinc-200 text-right focus:outline-none focus:border-indigo-500 disabled:opacity-50"
-                          placeholder="--"
-                        />
-                        <span>px</span>
+                    {/* Output Width Slider */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Output Width</span>
+                        <div className="inline-row">
+                          <input
+                            type="number"
+                            min="1"
+                            max={maxOutputWidth}
+                            value={outputWidthPx > 0 ? outputWidthPx : ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (!isNaN(val) && val > 0) {
+                                handleOutputWidthChange(Math.min(val, maxOutputWidth));
+                              }
+                            }}
+                            disabled={!inputSize}
+                            placeholder="--"
+                          />
+                          <span className="inline-row__unit">px</span>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min="64"
+                        max={maxOutputWidth}
+                        value={outputWidthPx > 0 ? outputWidthPx : 64}
+                        onChange={(e) => handleOutputWidthChange(Number(e.target.value))}
+                        disabled={!inputSize}
+                      />
+                    </div>
+
+                    {/* Output Height Slider */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Output Height</span>
+                        <div className="inline-row">
+                          <input
+                            type="number"
+                            min="1"
+                            max={maxOutputHeight}
+                            value={outputHeightPx > 0 ? outputHeightPx : ''}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (!isNaN(val) && val > 0) {
+                                handleOutputHeightChange(Math.min(val, maxOutputHeight));
+                              }
+                            }}
+                            disabled={!inputSize}
+                            placeholder="--"
+                          />
+                          <span className="inline-row__unit">px</span>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min="64"
+                        max={maxOutputHeight}
+                        value={outputHeightPx > 0 ? outputHeightPx : 64}
+                        onChange={(e) => handleOutputHeightChange(Number(e.target.value))}
+                        disabled={!inputSize}
+                      />
+                    </div>
+
+                    {/* Lock Aspect */}
+                    <div className="toggle">
+                      <span className="toggle__label">Lock Output Aspect</span>
+                      <button
+                        onClick={() => {
+                          const next = !lockOutputAspect;
+                          setLockOutputAspect(next);
+                          if (next && inputSize && outputWidthPx > 0) {
+                            setOutputHeight(Math.max(1, Math.round(outputWidthPx * inputAspect)));
+                          }
+                        }}
+                        className={`toggle__track ${lockOutputAspect ? 'toggle__track--on' : ''}`}
+                      >
+                        <div className="toggle__thumb" />
+                      </button>
+                    </div>
+
+                    {/* Font Aspect Ratio Slider (Calibration) */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Aspect Calibration</span>
+                        <span className="slider-label__value">{fontAspectRatio.toFixed(2)}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.3"
+                        max="0.8"
+                        step="0.01"
+                        value={fontAspectRatio}
+                        onChange={(e) => setFontAspectRatio(Number(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* COLORS SECTION */}
+              <div className="section-panel">
+                <button
+                  onClick={() => toggleSection('colors')}
+                  className="section-header"
+                >
+                  <span className="section-header__label">
+                    <Palette size={14} />
+                    Colors
+                  </span>
+                  <ChevronDown size={14} className={`section-header__chevron ${expandedSections.colors ? 'section-header__chevron--open' : ''}`} />
+                </button>
+                {expandedSections.colors && (
+                  <div className="section-body">
+                    {/* Source Color Toggle */}
+                    <div className="toggle">
+                      <span className="toggle__label">Source Color</span>
+                      <button
+                        onClick={() => setUseSourceColor(!useSourceColor)}
+                        className={`toggle__track ${useSourceColor ? 'toggle__track--on' : ''}`}
+                      >
+                        <div className="toggle__thumb" />
+                      </button>
+                    </div>
+
+                    {/* Colors */}
+                    <div className={`color-grid ${useSourceColor ? 'section-dimmed' : ''}`}>
+                      <div className="color-picker">
+                        <label className="color-picker__label">Text Color</label>
+                        <div className="color-picker__swatch">
+                          <input
+                            type="color"
+                            value={color}
+                            onChange={(e) => setColor(e.target.value)}
+                            disabled={useSourceColor}
+                          />
+                          <span className="color-picker__hex">{color}</span>
+                        </div>
+                      </div>
+                      <div className="color-picker">
+                        <label className="color-picker__label">Bg Color</label>
+                        <div className="color-picker__swatch">
+                          <input
+                            type="color"
+                            value={bgIsTransparent ? '#000000' : bgColor}
+                            onChange={(e) => setBgColor(e.target.value)}
+                            disabled={bgIsTransparent || useSourceColor}
+                          />
+                          <span className="color-picker__hex">{bgIsTransparent ? 'transparent' : bgColor}</span>
+                        </div>
                       </div>
                     </div>
-                    <input
-                      type="range"
-                      min="64"
-                      max={maxOutputWidth}
-                      value={outputWidthPx > 0 ? outputWidthPx : 64}
-                      onChange={(e) => handleOutputWidthChange(Number(e.target.value))}
-                      disabled={!inputSize}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
 
-                  {/* Output Height Slider */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Output Height</span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="1"
-                          max={maxOutputHeight}
-                          value={outputHeightPx > 0 ? outputHeightPx : ''}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            if (!isNaN(val) && val > 0) {
-                              handleOutputHeightChange(Math.min(val, maxOutputHeight));
-                            }
-                          }}
-                          disabled={!inputSize}
-                          className="w-16 bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5 text-zinc-200 text-right focus:outline-none focus:border-indigo-500 disabled:opacity-50"
-                          placeholder="--"
-                        />
-                        <span>px</span>
+                    {/* Transparent */}
+                    <div className="toggle">
+                      <span className="toggle__label">Transparent Bg</span>
+                      <button
+                        onClick={() => setBgColor(bgIsTransparent ? '#000000' : 'transparent')}
+                        className={`toggle__track ${bgIsTransparent ? 'toggle__track--on' : ''}`}
+                      >
+                        <div className="toggle__thumb" />
+                      </button>
+                    </div>
+
+                    {/* Invert */}
+                    <div className="toggle">
+                      <span className="toggle__label">Invert Colors</span>
+                      <button
+                        onClick={() => setInvert(!invert)}
+                        className={`toggle__track ${invert ? 'toggle__track--on' : ''}`}
+                      >
+                        <div className="toggle__thumb" />
+                      </button>
+                    </div>
+
+                    {/* Color Palette */}
+                    <div className={!useSourceColor ? 'section-dimmed' : ''}>
+                      <label className="label" style={{ display: 'block', marginBottom: 'var(--space-xs)' }}>Color Palette</label>
+                      <select
+                        value={colorPalette}
+                        onChange={(e) => setColorPalette(e.target.value)}
+                        disabled={!useSourceColor}
+                      >
+                        {Object.entries(COLOR_PALETTES).map(([id, palette]) => (
+                          <option key={id} value={id}>{palette.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ADJUSTMENTS SECTION */}
+              <div className="section-panel">
+                <button
+                  onClick={() => toggleSection('adjustments')}
+                  className="section-header"
+                >
+                  <span className="section-header__label">
+                    <SlidersHorizontal size={14} />
+                    Adjustments
+                  </span>
+                  <ChevronDown size={14} className={`section-header__chevron ${expandedSections.adjustments ? 'section-header__chevron--open' : ''}`} />
+                </button>
+                {expandedSections.adjustments && (
+                  <div className="section-body">
+                    {/* Source Overlay */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Layers size={12} /> Source Overlay
+                        </span>
+                        <span className="slider-label__value">{Math.round(overlayOpacity * 100)}%</span>
                       </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={overlayOpacity}
+                        onChange={(e) => setOverlayOpacity(Number(e.target.value))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="64"
-                      max={maxOutputHeight}
-                      value={outputHeightPx > 0 ? outputHeightPx : 64}
-                      onChange={(e) => handleOutputHeightChange(Number(e.target.value))}
-                      disabled={!inputSize}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
 
-                  {/* Lock Aspect */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Lock Output Aspect</span>
-                    <button
-                      onClick={() => {
-                        const next = !lockOutputAspect;
-                        setLockOutputAspect(next);
-                        if (next && inputSize && outputWidthPx > 0) {
-                          setOutputHeight(Math.max(1, Math.round(outputWidthPx * inputAspect)));
-                        }
-                      }}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${lockOutputAspect ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    >
-                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${lockOutputAspect ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  {/* Font Aspect Ratio Slider (Calibration) */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-zinc-400">
-                      <span>Aspect Calibration</span>
-                      <span>{fontAspectRatio.toFixed(2)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.3"
-                      max="0.8"
-                      step="0.01"
-                      value={fontAspectRatio}
-                      onChange={(e) => setFontAspectRatio(Number(e.target.value))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* COLORS SECTION */}
-            <div className="border border-zinc-800 rounded-lg overflow-hidden">
-              <button
-                onClick={() => toggleSection('colors')}
-                className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                  <Palette size={14} />
-                  Colors
-                </span>
-                <ChevronDown size={16} className={`text-zinc-400 transition-transform ${expandedSections.colors ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.colors && (
-                <div className="p-3 space-y-4 border-t border-zinc-800">
-                  {/* Source Color Toggle */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Source Color</span>
-                    <button
-                      onClick={() => setUseSourceColor(!useSourceColor)}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${useSourceColor ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    >
-                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${useSourceColor ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  {/* Colors */}
-                  <div className={`grid grid-cols-2 gap-4 transition-opacity ${useSourceColor ? 'opacity-40 pointer-events-none' : ''}`}>
-                    <div className="space-y-2">
-                      <label className="text-xs text-zinc-400 block">Text Color</label>
-                      <div className="flex items-center gap-2 bg-zinc-800 p-2 rounded-lg border border-zinc-700">
-                        <input
-                          type="color"
-                          value={color}
-                          onChange={(e) => setColor(e.target.value)}
-                          disabled={useSourceColor}
-                          className="w-6 h-6 rounded bg-transparent cursor-pointer border-none p-0"
-                        />
-                        <span className="text-xs font-mono text-zinc-400">{color}</span>
+                    {/* Brightness */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Brightness</span>
+                        <span className="slider-label__value">{brightness > 0 ? `+${brightness}` : brightness}</span>
                       </div>
+                      <input
+                        type="range"
+                        min="-300"
+                        max="300"
+                        value={brightness}
+                        onChange={(e) => setBrightness(Number(e.target.value))}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs text-zinc-400 block">Bg Color</label>
-                      <div className="flex items-center gap-2 bg-zinc-800 p-2 rounded-lg border border-zinc-700">
-                        <input
-                          type="color"
-                          value={bgIsTransparent ? '#000000' : bgColor}
-                          onChange={(e) => setBgColor(e.target.value)}
-                          disabled={bgIsTransparent || useSourceColor}
-                          className="w-6 h-6 rounded bg-transparent cursor-pointer border-none p-0"
-                        />
-                        <span className="text-xs font-mono text-zinc-400">{bgIsTransparent ? 'transparent' : bgColor}</span>
+
+                    {/* Contrast */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Contrast</span>
+                        <span className="slider-label__value">{contrast > 0 ? `+${contrast}` : contrast}</span>
                       </div>
+                      <input
+                        type="range"
+                        min="-300"
+                        max="300"
+                        value={contrast}
+                        onChange={(e) => setContrast(Number(e.target.value))}
+                      />
+                    </div>
+
+                    {/* Saturation */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Saturation</span>
+                        <span className="slider-label__value">{saturation > 0 ? `+${saturation}` : saturation}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="-300"
+                        max="300"
+                        value={saturation}
+                        onChange={(e) => setSaturation(Number(e.target.value))}
+                      />
+                    </div>
+
+                    {/* Sharpness */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Sharpness</span>
+                        <span className="slider-label__value">{sharpness}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={sharpness}
+                        onChange={(e) => setSharpness(Number(e.target.value))}
+                      />
+                    </div>
+
+                    {/* Dithering Toggle */}
+                    <div className="toggle">
+                      <span className="toggle__label">Dithering</span>
+                      <button
+                        onClick={() => setDithering(!dithering)}
+                        className={`toggle__track ${dithering ? 'toggle__track--on' : ''}`}
+                      >
+                        <div className="toggle__thumb" />
+                      </button>
+                    </div>
+
+                  </div>
+                )}
+              </div>
+
+              {/* CHARACTERS SECTION */}
+              <div className="section-panel">
+                <button
+                  onClick={() => toggleSection('characters')}
+                  className="section-header"
+                >
+                  <span className="section-header__label">
+                    <Type size={14} />
+                    Characters
+                  </span>
+                  <ChevronDown size={14} className={`section-header__chevron ${expandedSections.characters ? 'section-header__chevron--open' : ''}`} />
+                </button>
+                {expandedSections.characters && (
+                  <div className="section-body">
+                    {/* Character Presets */}
+                    <div>
+                      <label className="label" style={{ display: 'block', marginBottom: 'var(--space-xs)' }}>Character Preset</label>
+                      <select
+                        value={CHAR_PRESETS.find(p => p.chars === chars)?.name || 'Custom'}
+                        onChange={(e) => {
+                          const preset = CHAR_PRESETS.find(p => p.name === e.target.value);
+                          if (preset) setChars(preset.chars);
+                        }}
+                      >
+                        {CHAR_PRESETS.map(p => (
+                          <option key={p.name} value={p.name}>{p.name}</option>
+                        ))}
+                        {!CHAR_PRESETS.find(p => p.chars === chars) && (
+                          <option value="Custom">Custom</option>
+                        )}
+                      </select>
+                    </div>
+
+                    {/* Custom Charset */}
+                    <div>
+                      <label className="label" style={{ display: 'block', marginBottom: 'var(--space-xs)' }}>Character Map (Dark → Light)</label>
+                      <input
+                        type="text"
+                        value={chars}
+                        onChange={(e) => setChars(e.target.value)}
+                      />
                     </div>
                   </div>
+                )}
+              </div>
 
-                  {/* Transparent */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Transparent Bg</span>
-                    <button
-                      onClick={() => setBgColor(bgIsTransparent ? '#000000' : 'transparent')}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${bgIsTransparent ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    >
-                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${bgIsTransparent ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  {/* Invert */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Invert Colors</span>
-                    <button
-                      onClick={() => setInvert(!invert)}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${invert ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    >
-                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${invert ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                  {/* Color Palette */}
-                  <div className={`space-y-2 ${!useSourceColor ? 'opacity-40 pointer-events-none' : ''}`}>
-                    <label className="text-xs text-zinc-400 block">Color Palette</label>
-                    <select
-                      value={colorPalette}
-                      onChange={(e) => setColorPalette(e.target.value)}
-                      disabled={!useSourceColor}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                    >
-                      {Object.entries(COLOR_PALETTES).map(([id, palette]) => (
-                        <option key={id} value={id}>{palette.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ADJUSTMENTS SECTION */}
-            <div className="border border-zinc-800 rounded-lg overflow-hidden">
-              <button
-                onClick={() => toggleSection('adjustments')}
-                className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                  <SlidersHorizontal size={14} />
-                  Adjustments
-                </span>
-                <ChevronDown size={16} className={`text-zinc-400 transition-transform ${expandedSections.adjustments ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.adjustments && (
-                <div className="p-3 space-y-4 border-t border-zinc-800">
-                  {/* Source Overlay */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-zinc-400">
-                      <span className="flex items-center gap-1"><Layers size={12}/> Source Overlay</span>
-                      <span>{Math.round(overlayOpacity * 100)}%</span>
+              {/* EFFECTS SECTION */}
+              <div className="section-panel">
+                <button
+                  onClick={() => toggleSection('effects')}
+                  className="section-header"
+                >
+                  <span className="section-header__label">
+                    <Sparkles size={14} />
+                    Effects
+                  </span>
+                  <ChevronDown size={14} className={`section-header__chevron ${expandedSections.effects ? 'section-header__chevron--open' : ''}`} />
+                </button>
+                {expandedSections.effects && (
+                  <div className="section-body">
+                    {/* Scanlines */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">CRT Scanlines</span>
+                        <span className="slider-label__value">{postProcessing.scanlines}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={postProcessing.scanlines}
+                        onChange={(e) => setPostProcessing(p => ({ ...p, scanlines: Number(e.target.value) }))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={overlayOpacity}
-                      onChange={(e) => setOverlayOpacity(Number(e.target.value))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Brightness */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Brightness</span>
-                      <span>{brightness > 0 ? `+${brightness}` : brightness}</span>
+                    {/* Glow */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Phosphor Glow</span>
+                        <span className="slider-label__value">{postProcessing.glow}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={postProcessing.glow}
+                        onChange={(e) => setPostProcessing(p => ({ ...p, glow: Number(e.target.value) }))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="-300"
-                      max="300"
-                      value={brightness}
-                      onChange={(e) => setBrightness(Number(e.target.value))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Contrast */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Contrast</span>
-                      <span>{contrast > 0 ? `+${contrast}` : contrast}</span>
+                    {/* Chromatic Aberration */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">RGB Split</span>
+                        <span className="slider-label__value">{postProcessing.chromaticAberration}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={postProcessing.chromaticAberration}
+                        onChange={(e) => setPostProcessing(p => ({ ...p, chromaticAberration: Number(e.target.value) }))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="-300"
-                      max="300"
-                      value={contrast}
-                      onChange={(e) => setContrast(Number(e.target.value))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Saturation */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Saturation</span>
-                      <span>{saturation > 0 ? `+${saturation}` : saturation}</span>
+                    {/* Noise */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Static Noise</span>
+                        <span className="slider-label__value">{postProcessing.noise}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={postProcessing.noise}
+                        onChange={(e) => setPostProcessing(p => ({ ...p, noise: Number(e.target.value) }))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="-300"
-                      max="300"
-                      value={saturation}
-                      onChange={(e) => setSaturation(Number(e.target.value))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Sharpness */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Sharpness</span>
-                      <span>{sharpness}</span>
+                    {/* Vignette */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Vignette</span>
+                        <span className="slider-label__value">{postProcessing.vignette}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={postProcessing.vignette}
+                        onChange={(e) => setPostProcessing(p => ({ ...p, vignette: Number(e.target.value) }))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={sharpness}
-                      onChange={(e) => setSharpness(Number(e.target.value))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Dithering Toggle */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Dithering</span>
-                    <button
-                      onClick={() => setDithering(!dithering)}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${dithering ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    >
-                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${dithering ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-
-                </div>
-              )}
-            </div>
-
-            {/* CHARACTERS SECTION */}
-            <div className="border border-zinc-800 rounded-lg overflow-hidden">
-              <button
-                onClick={() => toggleSection('characters')}
-                className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                  <Type size={14} />
-                  Characters
-                </span>
-                <ChevronDown size={16} className={`text-zinc-400 transition-transform ${expandedSections.characters ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.characters && (
-                <div className="p-3 space-y-4 border-t border-zinc-800">
-                  {/* Character Presets */}
-                  <div className="space-y-2">
-                    <label className="text-xs text-zinc-400 block">Character Preset</label>
-                    <select
-                      value={CHAR_PRESETS.find(p => p.chars === chars)?.name || 'Custom'}
-                      onChange={(e) => {
-                        const preset = CHAR_PRESETS.find(p => p.name === e.target.value);
-                        if (preset) setChars(preset.chars);
-                      }}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      {CHAR_PRESETS.map(p => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                      {!CHAR_PRESETS.find(p => p.chars === chars) && (
-                        <option value="Custom">Custom</option>
-                      )}
-                    </select>
-                  </div>
-
-                  {/* Custom Charset */}
-                  <div className="space-y-2">
-                    <label className="text-xs text-zinc-400 block">Character Map (Dark → Light)</label>
-                    <input
-                      type="text"
-                      value={chars}
-                      onChange={(e) => setChars(e.target.value)}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs font-mono text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* EFFECTS SECTION */}
-            <div className="border border-zinc-800 rounded-lg overflow-hidden">
-              <button
-                onClick={() => toggleSection('effects')}
-                className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                  <Sparkles size={14} />
-                  Effects
-                </span>
-                <ChevronDown size={16} className={`text-zinc-400 transition-transform ${expandedSections.effects ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.effects && (
-                <div className="p-3 space-y-4 border-t border-zinc-800">
-                  {/* Scanlines */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>CRT Scanlines</span>
-                      <span>{postProcessing.scanlines}</span>
+                    {/* Flicker */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Flicker</span>
+                        <span className="slider-label__value">{postProcessing.flicker}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={postProcessing.flicker}
+                        onChange={(e) => setPostProcessing(p => ({ ...p, flicker: Number(e.target.value) }))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={postProcessing.scanlines}
-                      onChange={(e) => setPostProcessing(p => ({ ...p, scanlines: Number(e.target.value) }))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Glow */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Phosphor Glow</span>
-                      <span>{postProcessing.glow}</span>
+                    {/* Animation Effects Separator */}
+                    <div className="section-separator">
+                      <span className="section-separator__text">Animation</span>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={postProcessing.glow}
-                      onChange={(e) => setPostProcessing(p => ({ ...p, glow: Number(e.target.value) }))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Chromatic Aberration */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>RGB Split</span>
-                      <span>{postProcessing.chromaticAberration}</span>
+                    {/* Matrix Rain */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Matrix Rain</span>
+                        <span className="slider-label__value">{animationEffects.matrixRain}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={animationEffects.matrixRain}
+                        onChange={(e) => setAnimationEffects(a => ({ ...a, matrixRain: Number(e.target.value) }))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={postProcessing.chromaticAberration}
-                      onChange={(e) => setPostProcessing(p => ({ ...p, chromaticAberration: Number(e.target.value) }))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Noise */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Static Noise</span>
-                      <span>{postProcessing.noise}</span>
+                    {/* Wave Distortion */}
+                    <div className="slider-group">
+                      <div className="slider-label">
+                        <span className="slider-label__text">Wave Distortion</span>
+                        <span className="slider-label__value">{animationEffects.waveDistortion}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="300"
+                        value={animationEffects.waveDistortion}
+                        onChange={(e) => setAnimationEffects(a => ({ ...a, waveDistortion: Number(e.target.value) }))}
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={postProcessing.noise}
-                      onChange={(e) => setPostProcessing(p => ({ ...p, noise: Number(e.target.value) }))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
 
-                  {/* Vignette */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Vignette</span>
-                      <span>{postProcessing.vignette}</span>
+                    {/* Typing Reveal */}
+                    <div className="toggle">
+                      <span className="toggle__label">Typing Reveal</span>
+                      <button
+                        onClick={() => setAnimationEffects(a => ({ ...a, typingReveal: !a.typingReveal }))}
+                        className={`toggle__track ${animationEffects.typingReveal ? 'toggle__track--on' : ''}`}
+                      >
+                        <div className="toggle__thumb" />
+                      </button>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={postProcessing.vignette}
-                      onChange={(e) => setPostProcessing(p => ({ ...p, vignette: Number(e.target.value) }))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
                   </div>
+                )}
+              </div>
 
-                  {/* Flicker */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Flicker</span>
-                      <span>{postProcessing.flicker}</span>
+              {/* EXPORT SECTION */}
+              <div className="section-panel">
+                <button
+                  onClick={() => toggleSection('export')}
+                  className="section-header"
+                >
+                  <span className="section-header__label">
+                    <Download size={14} />
+                    Export
+                  </span>
+                  <ChevronDown size={14} className={`section-header__chevron ${expandedSections.export ? 'section-header__chevron--open' : ''}`} />
+                </button>
+                {expandedSections.export && (
+                  <div className="section-body">
+                    {/* Export 2x */}
+                    <div className="toggle">
+                      <span className="toggle__label">Export 2x Resolution</span>
+                      <button
+                        onClick={() => setExport2x(!export2x)}
+                        className={`toggle__track ${export2x ? 'toggle__track--on' : ''}`}
+                      >
+                        <div className="toggle__thumb" />
+                      </button>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={postProcessing.flicker}
-                      onChange={(e) => setPostProcessing(p => ({ ...p, flicker: Number(e.target.value) }))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
                   </div>
+                )}
+              </div>
 
-                  {/* Animation Effects Separator */}
-                  <div className="flex items-center gap-2 pt-2">
-                    <div className="flex-1 h-px bg-zinc-700" />
-                    <span className="text-xs text-zinc-500">Animation</span>
-                    <div className="flex-1 h-px bg-zinc-700" />
-                  </div>
-
-                  {/* Matrix Rain */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Matrix Rain</span>
-                      <span>{animationEffects.matrixRain}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={animationEffects.matrixRain}
-                      onChange={(e) => setAnimationEffects(a => ({ ...a, matrixRain: Number(e.target.value) }))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
-
-                  {/* Wave Distortion */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs text-zinc-400">
-                      <span>Wave Distortion</span>
-                      <span>{animationEffects.waveDistortion}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="300"
-                      value={animationEffects.waveDistortion}
-                      onChange={(e) => setAnimationEffects(a => ({ ...a, waveDistortion: Number(e.target.value) }))}
-                      className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                    />
-                  </div>
-
-                  {/* Typing Reveal */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Typing Reveal</span>
-                    <button
-                      onClick={() => setAnimationEffects(a => ({ ...a, typingReveal: !a.typingReveal }))}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${animationEffects.typingReveal ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    >
-                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${animationEffects.typingReveal ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* EXPORT SECTION */}
-            <div className="border border-zinc-800 rounded-lg overflow-hidden">
-              <button
-                onClick={() => toggleSection('export')}
-                className="w-full flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
-              >
-                <span className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                  <Download size={14} />
-                  Export
-                </span>
-                <ChevronDown size={16} className={`text-zinc-400 transition-transform ${expandedSections.export ? 'rotate-180' : ''}`} />
-              </button>
-              {expandedSections.export && (
-                <div className="p-3 space-y-4 border-t border-zinc-800">
-                  {/* Export 2x */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-zinc-300">Export 2x Resolution</span>
-                    <button
-                      onClick={() => setExport2x(!export2x)}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${export2x ? 'bg-indigo-600' : 'bg-zinc-700'}`}
-                    >
-                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${export2x ? 'translate-x-6' : 'translate-x-0'}`} />
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Reset Settings */}
             {appState === AppState.PLAYING && (
               <button
                 onClick={resetSettings}
-                className="flex items-center justify-center gap-2 w-full py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-400 hover:text-zinc-200"
+                className="btn btn--ghost"
+                style={{ width: '100%', marginTop: 'var(--space-md)' }}
               >
                 <RotateCcw size={14} />
                 Reset Settings
@@ -879,55 +852,54 @@ const App: React.FC = () => {
           {appState === AppState.PLAYING && (
              <button
                onClick={reset}
-               className="flex items-center justify-center gap-2 w-full py-3 rounded-lg border border-zinc-800 hover:bg-zinc-900 transition-colors text-zinc-400 hover:text-red-400"
+               className="btn btn--destructive"
+               style={{ width: '100%' }}
              >
-               <RefreshCcw size={16} />
-               Reset & Upload New
+               <RefreshCcw size={14} />
+               Reset &amp; Upload New
              </button>
           )}
 
         </div>
 
-        {/* Right Column: Viewer */}
-        <div className="flex-1 flex flex-col lg:flex-row gap-4 lg:items-start">
-          <div className="flex-1 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 relative flex flex-col min-h-[360px] lg:min-h-0 justify-center items-center">
+        {/* Center Column: Viewer */}
+        <div className="col-canvas">
+          <div className="card--canvas" style={{ width: '100%' }}>
 
             {appState === AppState.IDLE ? (
-               <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-                  <FileUpload onFileSelect={handleFileSelect} />
-                  <div className="w-full max-w-xl">
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 mb-2">
-                      <div className="flex-1 h-px bg-zinc-800" />
-                      <span>or paste URL</span>
-                      <div className="flex-1 h-px bg-zinc-800" />
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                        <input
-                          type="text"
-                          value={urlInput}
-                          onChange={(e) => { setUrlInput(e.target.value); setUrlError(null); }}
-                          onKeyDown={(e) => e.key === 'Enter' && loadFromUrl()}
-                          placeholder="https://example.com/image.gif"
-                          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-9 pr-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-zinc-600"
-                        />
-                      </div>
-                      <button
-                        onClick={loadFromUrl}
-                        disabled={!urlInput.trim()}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        Load
-                      </button>
-                    </div>
-                    {urlError && (
-                      <p className="text-red-400 text-xs mt-1">{urlError}</p>
-                    )}
-                  </div>
+               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-md)' }}>
+                 <FileUpload onFileSelect={handleFileSelect} />
+                 <div className="url-input-group">
+                   <div className="url-input-group__divider">
+                     <span>or paste url</span>
+                   </div>
+                   <div className="url-input-group__row">
+                     <div className="url-input-group__field">
+                       <Link size={14} />
+                       <input
+                         type="text"
+                         value={urlInput}
+                         onChange={(e) => { setUrlInput(e.target.value); setUrlError(null); }}
+                         onKeyDown={(e) => e.key === 'Enter' && loadFromUrl()}
+                         placeholder="https://example.com/image.gif"
+                         style={{ paddingLeft: '32px' }}
+                       />
+                     </div>
+                     <button
+                       onClick={loadFromUrl}
+                       disabled={!urlInput.trim()}
+                       className="btn btn--primary"
+                     >
+                       Load
+                     </button>
+                   </div>
+                   {urlError && (
+                     <p className="url-input-group__error">[ERROR] {urlError}</p>
+                   )}
+                 </div>
                </div>
             ) : (
-              <div className="w-full flex justify-center">
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
                 {fileUrl && (
                   <AsciiPlayer
                     imageSrc={fileUrl}
@@ -941,13 +913,15 @@ const App: React.FC = () => {
             )}
 
           </div>
+        </div>
 
+        {/* Right Column: Tenor Search */}
+        <div className="col-tenor">
           <div
-            className="lg:w-72 shrink-0 bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4 overflow-y-auto scrollbar-hide"
+            className="card--tenor"
             style={{
               maxHeight: controlsHeight ? `${controlsHeight}px` : undefined,
-              scrollbarWidth: 'none',
-            } as React.CSSProperties}
+            }}
           >
             <TenorSearch onGifSelect={handleFileSelect} compact />
           </div>

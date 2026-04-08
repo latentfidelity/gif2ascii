@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 
 interface TenorSearchProps {
   onGifSelect: (file: File) => void;
@@ -48,10 +47,6 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
   const debounceRef = useRef<number | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const tenorApiKey = import.meta.env.VITE_TENOR_API_KEY || '';
-  const gridCols = gridClassName || 'grid-cols-3';
-  const resultsContainerClass = compact
-    ? 'mt-4 grid grid-cols-3 gap-2'
-    : `mt-4 grid ${gridCols} gap-2`;
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -251,19 +246,19 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
   };
 
   return (
-    <div className={`${className} h-full flex flex-col`}>
-      <div className="flex items-center justify-between shrink-0">
-        <p className="text-xs uppercase tracking-widest text-zinc-400">Search Tenor</p>
-        <span className="text-[10px] text-zinc-500">Powered by Tenor</span>
+    <div className={className} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div className="tenor__header">
+        <span className="tenor__title">Search Tenor</span>
+        <span className="tenor__badge">Powered by Tenor</span>
       </div>
 
       {!tenorApiKey && (
-        <div className="mt-3 text-xs text-amber-300 bg-amber-300/10 border border-amber-400/20 rounded-lg px-3 py-2">
-          Add VITE_TENOR_API_KEY to .env to enable search.
+        <div className="tenor__warning">
+          [CONFIG] Add VITE_TENOR_API_KEY to .env to enable search.
         </div>
       )}
 
-      <form onSubmit={handleSearch} className="mt-3 shrink-0">
+      <form onSubmit={handleSearch} style={{ flexShrink: 0 }}>
         <input
           type="text"
           placeholder="Search for a GIF..."
@@ -273,19 +268,24 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
             if (error) setError(null);
           }}
           disabled={!tenorApiKey}
-          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="tenor__search-input"
+          style={!tenorApiKey ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
         />
       </form>
 
       {error && (
-        <div className="mt-3 text-sm text-red-400 bg-red-400/10 px-3 py-2 rounded-lg">
-          {error}
-        </div>
+        <p className="upload-zone__error" style={{ marginBottom: 'var(--space-sm)' }}>
+          [ERROR] {error}
+        </p>
       )}
 
       {results.length > 0 && (
-        <div ref={scrollContainerRef} className="mt-4 flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          <div className={compact ? 'grid grid-cols-3 gap-2' : `grid ${gridCols} gap-2`}>
+        <div
+          ref={scrollContainerRef}
+          className="scrollbar-hide"
+          style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '2px' }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
             {results.map((result) => {
               const previewUrl = result.media_formats?.tinygif?.url || result.media_formats?.gif?.url;
               const altText = result.content_description || result.title || 'Tenor GIF';
@@ -296,18 +296,38 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
                   type="button"
                   onClick={() => handleSelect(result)}
                   disabled={selectingId === result.id}
-                  className="relative aspect-square overflow-hidden rounded-lg border border-zinc-800 hover:border-indigo-500 transition-colors disabled:opacity-60"
+                  style={{
+                    position: 'relative',
+                    aspectRatio: '1',
+                    overflow: 'hidden',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    transition: 'border-color 150ms',
+                    opacity: selectingId === result.id ? 0.5 : 1,
+                  }}
                   title={altText}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--text-secondary)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
                 >
                   <img
                     src={previewUrl}
                     alt={altText}
-                    className="w-full h-full object-cover"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                     loading="lazy"
                   />
                   {selectingId === result.id && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <Loader2 className="animate-spin text-white" size={22} />
+                    <div style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(0,0,0,0.7)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <span className="player__loading-text" style={{ fontSize: 'var(--label)' }}>[LOADING...]</span>
                     </div>
                   )}
                 </button>
@@ -315,15 +335,15 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
             })}
           </div>
           {nextPos && (
-            <div ref={loadMoreRef} className="flex justify-center py-4">
-              {loadingMore && <Loader2 className="animate-spin text-zinc-500" size={20} />}
+            <div ref={loadMoreRef} style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-md) 0' }}>
+              {loadingMore && <span className="player__loading-text" style={{ fontSize: 'var(--label)' }}>[LOADING...]</span>}
             </div>
           )}
         </div>
       )}
 
       {hasSearched && !loading && results.length === 0 && !error && (
-        <p className="mt-4 text-xs text-zinc-500">No results found. Try another search.</p>
+        <p className="caption" style={{ marginTop: 'var(--space-md)' }}>No results found. Try another search.</p>
       )}
     </div>
   );

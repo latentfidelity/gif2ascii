@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Upload, AlertCircle } from 'lucide-react';
+import { Upload } from 'lucide-react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -45,12 +45,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
 
   return (
     <div 
-      className={`w-full max-w-xl mx-auto p-12 border-2 border-dashed rounded-2xl transition-all duration-300 flex flex-col items-center justify-center text-center
-        ${isDragging 
-          ? 'border-indigo-500 bg-indigo-500/10 scale-[1.02]' 
-          : 'border-zinc-700 hover:border-zinc-500 bg-zinc-900/50'
-        }
-      `}
+      className={`upload-zone ${isDragging ? 'upload-zone--dragging' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -58,25 +53,22 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
       <input 
         type="file" 
         id="fileInput" 
-        className="hidden" 
+        className="sr-only" 
         accept="image/gif, image/jpeg, image/png, image/webp" 
         onChange={handleInputChange} 
       />
       
-      <label htmlFor="fileInput" className="w-full flex flex-col items-center justify-center text-center cursor-pointer group">
-        <div className={`p-4 rounded-full mb-4 transition-colors ${isDragging ? 'bg-indigo-500 text-white' : 'bg-zinc-800 text-zinc-400 group-hover:text-zinc-200'}`}>
-          <Upload size={32} />
+      <label htmlFor="fileInput" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', cursor: 'pointer' }}>
+        <div className="upload-zone__icon">
+          <Upload size={28} strokeWidth={1.5} />
         </div>
         
-        <h3 className="text-xl font-bold text-zinc-100 mb-2">Upload an Image</h3>
-        <p className="text-zinc-400 text-sm mb-6">Drag and drop or click to select</p>
+        <h3 className="upload-zone__title">Upload Image</h3>
+        <p className="upload-zone__subtitle">Drag and drop or click to select</p>
       </label>
       
       {error && (
-        <div className="flex items-center gap-2 text-red-400 text-sm bg-red-400/10 px-4 py-2 rounded-lg">
-          <AlertCircle size={16} />
-          {error}
-        </div>
+        <p className="upload-zone__error">[ERROR] {error}</p>
       )}
 
     </div>

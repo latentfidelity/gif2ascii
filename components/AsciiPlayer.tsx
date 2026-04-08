@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Loader2, Download, Video, FileImage, Copy, FileText, ChevronLeft, ChevronRight, Code, Terminal } from 'lucide-react';
+import { Play, Pause, RotateCcw, Download, Video, FileImage, Copy, FileText, ChevronLeft, ChevronRight, Code, Terminal } from 'lucide-react';
 import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
 import { AsciiConfig } from '../types';
@@ -1080,16 +1080,20 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
   if (error) {
     return (
-        <div className="w-full h-full flex items-center justify-center text-red-400 bg-red-400/10 rounded-xl p-4 text-center">
-            <p>{error}</p>
+        <div className="error-state">
+            <p className="error-state__text">[ERROR] {error}</p>
         </div>
     );
   }
 
+  // Generate segmented progress bar segments
+  const PROGRESS_SEGMENTS = 20;
+  const filledSegments = Math.round((exportProgress / 100) * PROGRESS_SEGMENTS);
+
   return (
     <div
       ref={frameRef}
-      className="group relative overflow-hidden rounded-xl shadow-2xl border border-zinc-800 transition-colors duration-300"
+      className="player"
       style={{
         backgroundColor: config.backgroundColor,
         width: `${displaySize.width}px`,
@@ -1097,42 +1101,41 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
       }}
     >
           {isLoading && (
-              <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm text-zinc-400">
-                  <Loader2 className="animate-spin mb-2" size={32} />
-                  <p className="text-xs uppercase tracking-widest">Loading image...</p>
+              <div className="player__loading">
+                  <span className="player__loading-text">[LOADING...]</span>
               </div>
           )}
 
           {isExporting && (
-               <div className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 backdrop-blur-[2px] text-white">
-                   <div className="bg-zinc-900 border border-zinc-700 p-6 rounded-xl shadow-2xl flex flex-col items-center gap-4 min-w-[200px]">
-                      <Loader2 className="animate-spin text-indigo-500" size={32} />
-                      <div className="text-center">
-                          <p className="font-medium mb-1">Rendering...</p>
-                          <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2 overflow-hidden">
-                              <div
-                                  className="bg-indigo-500 h-full transition-all duration-75 ease-out"
-                                  style={{ width: `${exportProgress}%` }}
-                              />
-                          </div>
+               <div className="player__export-overlay">
+                   <div className="player__export-card">
+                      <span className="player__export-label">Rendering</span>
+                      <div className="progress-bar">
+                        {Array.from({ length: PROGRESS_SEGMENTS }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={`progress-bar__segment ${i < filledSegments ? 'progress-bar__segment--filled' : ''}`}
+                          />
+                        ))}
                       </div>
+                      <span className="progress-bar__value">{exportProgress}%</span>
                    </div>
                </div>
           )}
 
-          <canvas ref={canvasRef} className="w-full h-full block" />
+          <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
 
           {/* Frame info bar - top */}
           {!isStaticImage && frames.length > 1 && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl">
-              <span className="text-xs text-zinc-400 font-mono">
+            <div className="player__frame-info">
+              <span className="player__frame-counter">
                 {currentFrameIndex + 1} / {frames.length}
               </span>
-              <div className="w-px h-3 bg-zinc-700" />
+              <div className="separator" />
               <select
                 value={playbackSpeed}
                 onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-                className="bg-transparent text-xs text-zinc-300 focus:outline-none cursor-pointer"
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontFamily: "'Space Mono', monospace", fontSize: 'var(--label)', cursor: 'pointer', outline: 'none' }}
                 title="Playback Speed"
               >
                 <option value={0.25}>0.25x</option>
@@ -1146,7 +1149,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
           {/* Frame scrubber - just above controls */}
           {!isStaticImage && frames.length > 1 && (
-            <div className="absolute bottom-16 left-4 right-4 z-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="player__scrubber">
               <input
                 type="range"
                 min={0}
@@ -1156,126 +1159,119 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
                   setIsPlaying(false);
                   goToFrame(Number(e.target.value));
                 }}
-                className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
               />
             </div>
           )}
 
           {/* Controls */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-2 py-1.5 bg-zinc-900/90 backdrop-blur border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl">
+          <div className="player__controls">
                {/* Animation controls - only for animated GIFs */}
                {!isStaticImage && (
                  <>
-                   {/* Step back */}
                    <button
                       onClick={() => { setIsPlaying(false); stepFrame(-1); }}
                       disabled={isExporting}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+                      className="btn btn--icon"
                       title="Previous Frame (←)"
                    >
-                      <ChevronLeft size={16} />
+                      <ChevronLeft size={16} strokeWidth={1.5} />
                    </button>
 
                    <button
                       onClick={togglePlay}
                       disabled={isExporting}
-                      className="p-2 hover:bg-zinc-800 rounded-full text-zinc-200 transition-colors disabled:opacity-50"
+                      className="btn btn--icon"
                       title={isPlaying ? "Pause (Space)" : "Play (Space)"}
                    >
-                      {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                      {isPlaying ? <Pause size={16} fill="currentColor" strokeWidth={1.5} /> : <Play size={16} fill="currentColor" strokeWidth={1.5} />}
                    </button>
 
-                   {/* Step forward */}
                    <button
                       onClick={() => { setIsPlaying(false); stepFrame(1); }}
                       disabled={isExporting}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+                      className="btn btn--icon"
                       title="Next Frame (→)"
                    >
-                      <ChevronRight size={16} />
+                      <ChevronRight size={16} strokeWidth={1.5} />
                    </button>
 
-                   <div className="w-px h-4 bg-zinc-700" />
+                   <div className="separator" />
 
                    <button
                       onClick={restart}
                       disabled={isExporting}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
+                      className="btn btn--icon"
                       title="Restart"
                    >
-                      <RotateCcw size={16} />
+                      <RotateCcw size={16} strokeWidth={1.5} />
                    </button>
 
-                   <div className="w-px h-4 bg-zinc-700" />
+                   <div className="separator" />
                  </>
                )}
 
-               {/* Copy buttons */}
                <button
                   onClick={copyImageToClipboard}
-                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors"
+                  className="btn btn--icon"
                   title="Copy Image"
                >
-                  <Copy size={16} />
+                  <Copy size={16} strokeWidth={1.5} />
                </button>
 
                <button
                   onClick={copyTextToClipboard}
-                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-zinc-200 transition-colors"
+                  className="btn btn--icon"
                   title="Copy ASCII Text"
                >
-                  <FileText size={16} />
+                  <FileText size={16} strokeWidth={1.5} />
                </button>
 
-               <div className="w-px h-4 bg-zinc-700" />
+               <div className="separator" />
 
-               {/* Export buttons */}
                {!isStaticImage && (
                  <>
                    <button
                       onClick={handleExportVideo}
                       disabled={isExporting}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                      className="btn btn--icon"
                       title="Export Video"
                    >
-                      <Video size={16} />
+                      <Video size={16} strokeWidth={1.5} />
                    </button>
 
                    <button
                       onClick={handleExportGif}
                       disabled={isExporting}
-                      className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors disabled:opacity-50"
+                      className="btn btn--icon"
                       title="Export GIF"
                    >
-                      <FileImage size={16} />
+                      <FileImage size={16} strokeWidth={1.5} />
                    </button>
                  </>
                )}
 
-               {/* PNG export - for all */}
                <button
                   onClick={handleExportPng}
-                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors"
+                  className="btn btn--icon"
                   title="Export PNG"
                >
-                  <Download size={16} />
+                  <Download size={16} strokeWidth={1.5} />
                </button>
 
-               {/* HTML/ANSI exports */}
                <button
                   onClick={exportAsHtml}
-                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors"
+                  className="btn btn--icon"
                   title="Export HTML"
                >
-                  <Code size={16} />
+                  <Code size={16} strokeWidth={1.5} />
                </button>
 
                <button
                   onClick={exportAsAnsi}
-                  className="p-1.5 hover:bg-zinc-800 rounded-full text-zinc-400 hover:text-indigo-400 transition-colors"
+                  className="btn btn--icon"
                   title="Export ANSI (.ans)"
                >
-                  <Terminal size={16} />
+                  <Terminal size={16} strokeWidth={1.5} />
                </button>
           </div>
     </div>
