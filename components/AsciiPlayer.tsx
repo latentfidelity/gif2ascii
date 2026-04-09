@@ -1245,7 +1245,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
                       className="btn btn--icon"
                       title="Export GIF"
                    >
-                      <FileImage size={16} strokeWidth={1.5} />
+                      <Download size={16} strokeWidth={1.5} />
                    </button>
                  </>
                )}
@@ -1255,7 +1255,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
                   className="btn btn--icon"
                   title="Export PNG"
                >
-                  <Download size={16} strokeWidth={1.5} />
+                  <FileImage size={16} strokeWidth={1.5} />
                </button>
 
                <button
