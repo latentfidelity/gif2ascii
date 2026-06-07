@@ -22,6 +22,8 @@ export const DEFAULT_POST_PROCESSING: PostProcessingConfig = {
   flicker: 0
 };
 
+const clampAlpha = (value: number): number => Math.max(0, Math.min(1, value));
+
 /**
  * Applies CRT scanline effect
  */
@@ -33,7 +35,7 @@ const applyScanlines = (
 ): void => {
   if (intensity <= 0) return;
 
-  const alpha = (intensity / 100) * 0.4;
+  const alpha = clampAlpha((intensity / 100) * 0.4);
   ctx.fillStyle = `rgba(0, 0, 0, ${alpha})`;
 
   // Draw horizontal lines every 2-3 pixels
@@ -206,7 +208,7 @@ export const applyPostProcessing = (
   config: PostProcessingConfig,
   time: number = 0
 ): void => {
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return;
 
   const { width, height } = canvas;

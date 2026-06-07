@@ -1,9 +1,7 @@
-import { useState, useMemo, useCallback, useDeferredValue } from 'react';
+import { useState, useMemo, useCallback, useDeferredValue, type MutableRefObject } from 'react';
 import { AsciiConfig, PostProcessingConfig, AnimationEffectsConfig } from '../types';
 import { DEFAULT_CHARS } from '../services/asciiUtils';
 import { STYLE_PRESETS, StylePreset } from '../services/stylePresets';
-
-const DEFAULT_DENSITY_CELL_WIDTH = 5;
 
 export interface AsciiConfigState {
   // Individual values
@@ -62,6 +60,7 @@ export interface AsciiConfigState {
 
   // Actions
   applyPreset: (preset: StylePreset) => void;
+  markCustomPreset: () => void;
   resetSettings: () => void;
   handleDensityChange: (value: number) => void;
   handleOutputWidthChange: (value: number) => void;
@@ -70,21 +69,21 @@ export interface AsciiConfigState {
 
 export function useAsciiConfig(
   inputSize: { width: number; height: number } | null,
-  userAdjustedRef: React.MutableRefObject<boolean>
+  userAdjustedRef: MutableRefObject<boolean>
 ): AsciiConfigState {
-  const [density, setDensity] = useState(60);
+  const [density, setDensity] = useState(64);
   const [chars, setChars] = useState(DEFAULT_CHARS);
   const [color, setColor] = useState('#ffffff');
   const [invert, setInvert] = useState(false);
   const [bgColor, setBgColor] = useState('#000000');
-  const [fontAspectRatio, setFontAspectRatio] = useState(0.55);
+  const [fontAspectRatio, setFontAspectRatio] = useState(0.60);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
-  const [useSourceColor, setUseSourceColor] = useState(false);
+  const [useSourceColor, setUseSourceColor] = useState(true);
   const [brightness, setBrightness] = useState(0);
   const [contrast, setContrast] = useState(0);
   const [saturation, setSaturation] = useState(0);
   const [dithering, setDithering] = useState(false);
-  const [sharpness, setSharpness] = useState(50);
+  const [sharpness, setSharpness] = useState(0);
   const [colorPalette, setColorPalette] = useState('none');
   const [postProcessing, setPostProcessing] = useState<PostProcessingConfig>({
     scanlines: 0, glow: 0, chromaticAberration: 0,
@@ -100,16 +99,50 @@ export function useAsciiConfig(
   const [outputHeight, setOutputHeight] = useState(0);
 
   const inputAspect = inputSize ? (inputSize.height / inputSize.width) : 1;
+  const maxOutputWidth = inputSize ? Math.max(320, inputSize.width * 2) : Number.MAX_SAFE_INTEGER;
+  const maxOutputHeight = inputSize ? Math.max(320, inputSize.height * 2) : Number.MAX_SAFE_INTEGER;
   const outputWidthPx = outputWidth > 0 ? outputWidth : (inputSize?.width ?? 0);
   const outputHeightPx = outputHeight > 0 ? outputHeight : (inputSize?.height ?? 0);
   const bgIsTransparent = bgColor === 'transparent';
+
+  const clampOutputWidth = useCallback((value: number): number => (
+    Math.max(1, Math.min(maxOutputWidth, Math.round(value)))
+  ), [maxOutputWidth]);
+
+  const clampOutputHeight = useCallback((value: number): number => (
+    Math.max(1, Math.min(maxOutputHeight, Math.round(value)))
+  ), [maxOutputHeight]);
+
+  const getLockedSizeFromWidth = useCallback((value: number) => {
+    let width = clampOutputWidth(value);
+    let height = clampOutputHeight(width * inputAspect);
+
+    if (inputSize && height >= maxOutputHeight) {
+      height = maxOutputHeight;
+      width = clampOutputWidth(height / inputAspect);
+    }
+
+    return { width, height };
+  }, [clampOutputHeight, clampOutputWidth, inputAspect, inputSize, maxOutputHeight]);
+
+  const getLockedSizeFromHeight = useCallback((value: number) => {
+    let height = clampOutputHeight(value);
+    let width = clampOutputWidth(height / inputAspect);
+
+    if (inputSize && width >= maxOutputWidth) {
+      width = maxOutputWidth;
+      height = clampOutputHeight(width * inputAspect);
+    }
+
+    return { width, height };
+  }, [clampOutputHeight, clampOutputWidth, inputAspect, inputSize, maxOutputWidth]);
 
   const config: AsciiConfig = useMemo(() => ({
     resolution: density,
     chars,
     color,
     backgroundColor: bgColor,
-    invert: !invert,
+    invert,
     fontAspectRatio,
     overlayOpacity,
     useSourceColor,
@@ -129,31 +162,48 @@ export function useAsciiConfig(
 
   const handleOutputWidthChange = useCallback((value: number) => {
     userAdjustedRef.current = true;
-    setOutputWidth(value);
+    const width = clampOutputWidth(value);
+
     if (lockOutputAspect && inputSize) {
-      setOutputHeight(Math.max(1, Math.round(value * inputAspect)));
+      const lockedSize = getLockedSizeFromWidth(width);
+      setOutputWidth(lockedSize.width);
+      setOutputHeight(lockedSize.height);
+      return;
     }
-  }, [lockOutputAspect, inputSize, inputAspect]);
+
+    setOutputWidth(width);
+  }, [clampOutputWidth, getLockedSizeFromWidth, lockOutputAspect, inputSize]);
 
   const handleOutputHeightChange = useCallback((value: number) => {
     userAdjustedRef.current = true;
-    setOutputHeight(value);
+    const height = clampOutputHeight(value);
+
     if (lockOutputAspect && inputSize) {
-      setOutputWidth(Math.max(1, Math.round(value / inputAspect)));
+      const lockedSize = getLockedSizeFromHeight(height);
+      setOutputWidth(lockedSize.width);
+      setOutputHeight(lockedSize.height);
+      return;
     }
-  }, [lockOutputAspect, inputSize, inputAspect]);
+
+    setOutputHeight(height);
+  }, [clampOutputHeight, getLockedSizeFromHeight, lockOutputAspect, inputSize]);
+
+  const markCustomPreset = useCallback(() => {
+    setActivePresetId('custom');
+  }, []);
 
   const handleDensityChange = useCallback((value: number) => {
     userAdjustedRef.current = true;
+    markCustomPreset();
     setDensity(value);
-  }, []);
+  }, [markCustomPreset]);
 
   const applyPreset = useCallback((preset: StylePreset) => {
     const c = preset.config;
     if (c.resolution !== undefined) setDensity(c.resolution);
     if (c.chars !== undefined) setChars(c.chars);
     if (c.color !== undefined) setColor(c.color);
-    if (c.invert !== undefined) setInvert(!c.invert);
+    if (c.invert !== undefined) setInvert(c.invert);
     if (c.backgroundColor !== undefined) setBgColor(c.backgroundColor);
     if (c.fontAspectRatio !== undefined) setFontAspectRatio(c.fontAspectRatio);
     if (c.overlayOpacity !== undefined) setOverlayOpacity(c.overlayOpacity);
@@ -177,7 +227,6 @@ export function useAsciiConfig(
     if (inputSize) {
       setOutputWidth(inputSize.width);
       setOutputHeight(inputSize.height);
-      setDensity(Math.max(10, Math.round(inputSize.width / DEFAULT_DENSITY_CELL_WIDTH)));
     }
   }, [inputSize, applyPreset]);
 
@@ -195,7 +244,7 @@ export function useAsciiConfig(
     config, deferredConfig, deferredOutputWidth, deferredOutputHeight,
     outputWidthPx, outputHeightPx, bgIsTransparent,
 
-    applyPreset, resetSettings, handleDensityChange,
+    applyPreset, markCustomPreset, resetSettings, handleDensityChange,
     handleOutputWidthChange, handleOutputHeightChange,
   };
 }

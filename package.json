@@ -16,6 +16,10 @@
   },
   "scripts": {
     "dev": "vite",
+    "test": "npm run test:tenor && npm run test:ui",
+    "test:tenor": "esbuild tests/tenorUtils.test.ts --bundle --platform=node --format=esm --outfile=/tmp/gif2ascii-tenorUtils.test.mjs && node --test /tmp/gif2ascii-tenorUtils.test.mjs",
+    "test:ui": "esbuild tests/uiFidelity.test.ts --bundle --platform=node --format=esm --outfile=/tmp/gif2ascii-uiFidelity.test.mjs && node --test /tmp/gif2ascii-uiFidelity.test.mjs",
+    "audit:ui-reference": "esbuild scripts/visualDiff.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/gif2ascii-visualDiff.mjs --external:@napi-rs/canvas && node node_modules/.cache/gif2ascii-visualDiff.mjs",
     "build": "vite build",
     "build:cli": "esbuild cli/index.ts --bundle --platform=node --format=esm --outfile=cli/dist/index.js --external:@napi-rs/canvas --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
     "preview": "vite preview"

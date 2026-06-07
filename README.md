@@ -21,11 +21,11 @@ Convert GIFs and images to ASCII art with real-time preview, CRT effects, and mu
 
 - **Multi-format input** — GIF, PNG, JPEG, WebP with drag-and-drop or URL paste
 - **13 character presets** — Standard, Dense, Blocks, Braille, Katakana, and more
-- **Color modes** — Monochrome, source colors, custom palettes (CGA, Gameboy, Solarized, etc.)
+- **Color modes** — Monochrome, source colors, custom palettes (CGA, Gameboy, Commodore 64, Neon, and more)
 - **Image adjustments** — Brightness, contrast, saturation, sharpness, dithering
 - **CRT effects** — Scanlines, phosphor glow, chromatic aberration, noise, vignette, flicker
 - **Animation effects** — Matrix rain, wave distortion, typing reveal
-- **Export** — GIF, MP4/WebM video, PNG, HTML, ANSI (.ans)
+- **Export** — GIF, MP4/WebM video, PNG
 - **Tenor integration** — Search and convert GIFs directly (requires API key)
 - **Keyboard shortcuts** — Space (play/pause), Arrow keys (step frames), Home/End
 - **CLI tool** — Terminal-based playback with ANSI colors and Sixel support

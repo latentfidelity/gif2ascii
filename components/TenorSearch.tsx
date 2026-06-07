@@ -1,4 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Search } from 'lucide-react';
+import {
+  buildTenorUrl,
+  dedupeTenorResults,
+  getTenorDownloadUrl,
+  getTenorPreviewUrl,
+  type TenorResult,
+} from '../services/tenorUtils';
 
 interface TenorSearchProps {
   onGifSelect: (file: File) => void;
@@ -7,28 +15,13 @@ interface TenorSearchProps {
   compact?: boolean;
 }
 
-interface TenorMediaFormat {
-  url: string;
-}
-
-interface TenorResult {
-  id: string;
-  title?: string;
-  content_description?: string;
-  media_formats?: {
-    gif?: TenorMediaFormat;
-    mediumgif?: TenorMediaFormat;
-    tinygif?: TenorMediaFormat;
-  };
-}
-
 const TenorSearch: React.FC<TenorSearchProps> = ({
  onGifSelect,
  className,
  gridClassName,
  compact
 }) => {
-  const SEARCH_LIMIT = compact ? '12' : '18';
+  const SEARCH_LIMIT = compact ? '24' : '18';
   const REQUEST_TIMEOUT_MS = 12000;
   const DEBOUNCE_MS = 350;
   const tenorBaseUrl = import.meta.env.DEV
@@ -46,6 +39,7 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
   const requestIdRef = useRef(0);
   const debounceRef = useRef<number | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<TenorResult[]>([]);
   const tenorApiKey = import.meta.env.VITE_TENOR_API_KEY || '';
 
   useEffect(() => {
@@ -55,20 +49,15 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
     };
   }, []);
 
-  const buildTenorUrl = (endpoint: string, params?: Record<string, string>) => {
-    const base = tenorBaseUrl.replace(/\/$/, '');
-    const url = new URL(`${base}/v2/${endpoint}`, window.location.origin);
-    url.searchParams.set('key', tenorApiKey);
-    url.searchParams.set('limit', SEARCH_LIMIT);
-    url.searchParams.set('media_filter', 'gif,mediumgif,tinygif');
-    url.searchParams.set('contentfilter', 'high');
-    url.searchParams.set('client_key', 'gif2ascii');
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.set(key, value);
-      });
-    }
-    return url;
+  const buildTenorRequestUrl = (endpoint: string, params?: Record<string, string>) => {
+    return buildTenorUrl({
+      baseUrl: tenorBaseUrl,
+      endpoint,
+      apiKey: tenorApiKey,
+      limit: SEARCH_LIMIT,
+      origin: window.location.origin,
+      params,
+    });
   };
 
   const fetchTenor = async (url: URL, markSearched: boolean, append = false) => {
@@ -85,6 +74,9 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
       setLoadingMore(true);
     } else {
       setLoading(true);
+      resultsRef.current = [];
+      setResults([]);
+      setNextPos(null);
     }
     setError(null);
     if (markSearched) {
@@ -100,14 +92,19 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
         throw new Error(`Tenor API error (${resp.status})`);
       }
       const data = await resp.json();
-      const newResults = Array.isArray(data.results) ? data.results : [];
+      const newResults = dedupeTenorResults(Array.isArray(data.results) ? data.results : []);
       if (isMountedRef.current && requestId === requestIdRef.current) {
+        let nextResults = newResults;
+        let uniqueAppendCount = newResults.length;
         if (append) {
-          setResults((prev) => [...prev, ...newResults]);
-        } else {
-          setResults(newResults);
+          const seen = new Set(resultsRef.current.map((item) => item.id));
+          const uniqueResults = newResults.filter((item) => !seen.has(item.id));
+          uniqueAppendCount = uniqueResults.length;
+          nextResults = uniqueResults.length > 0 ? [...resultsRef.current, ...uniqueResults] : resultsRef.current;
         }
-        setNextPos(data.next || null);
+        resultsRef.current = nextResults;
+        setResults(nextResults);
+        setNextPos(append && uniqueAppendCount === 0 ? null : (data.next || null));
       }
     } catch (err: any) {
       if (!isMountedRef.current || requestId !== requestIdRef.current) return;
@@ -116,7 +113,6 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
       } else if (err?.message === 'TENOR_PROXY_MISSING') {
         setError('Tenor proxy is not running. Restart `npm run dev` and open the correct port.');
       } else {
-        console.error('Tenor search failed', err);
         setError('Could not load Tenor results. Please try again.');
       }
     } finally {
@@ -130,14 +126,14 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
 
   const fetchFeatured = async (pos?: string) => {
     const params = pos ? { pos } : undefined;
-    const url = buildTenorUrl('featured', params);
+    const url = buildTenorRequestUrl('featured', params);
     await fetchTenor(url, false, !!pos);
   };
 
   const fetchSearch = async (term: string, markSearched = true, pos?: string) => {
     const params: Record<string, string> = { q: term };
     if (pos) params.pos = pos;
-    const url = buildTenorUrl('search', params);
+    const url = buildTenorRequestUrl('search', params);
     await fetchTenor(url, markSearched, !!pos);
   };
 
@@ -151,28 +147,32 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
     }
   };
 
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-    const el = loadMoreRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [nextPos, loadingMore, loading, query]);
-
-  useEffect(() => {
-    if (!tenorApiKey) return;
     if (!query.trim()) {
       setHasSearched(false);
+      setError(null);
+      if (debounceRef.current) {
+        window.clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      if (!tenorApiKey) {
+        resultsRef.current = [];
+        setResults([]);
+        setNextPos(null);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
       fetchFeatured();
+      return;
+    }
+
+    if (!tenorApiKey) {
+      setHasSearched(true);
+      setError('Add VITE_TENOR_API_KEY to .env to enable Tenor search.');
+      resultsRef.current = [];
+      setResults([]);
+      setNextPos(null);
       return;
     }
 
@@ -197,9 +197,11 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
     const trimmed = query.trim();
 
     if (!trimmed) {
-      setError('Enter a search term to find GIFs.');
+      setError(null);
+      resultsRef.current = [];
       setResults([]);
-      setHasSearched(true);
+      setHasSearched(false);
+      setNextPos(null);
       return;
     }
 
@@ -212,8 +214,7 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
   };
 
   const handleSelect = async (result: TenorResult) => {
-    const media = result.media_formats;
-    const gifUrl = media?.mediumgif?.url || media?.gif?.url || media?.tinygif?.url;
+    const gifUrl = getTenorDownloadUrl(result);
 
     if (!gifUrl) {
       setError('No downloadable GIF found for this result.');
@@ -234,7 +235,6 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
       });
       onGifSelect(file);
     } catch (err) {
-      console.error('Tenor GIF fetch failed', err);
       if (isMountedRef.current) {
         setError('Failed to download the GIF. Please try another.');
       }
@@ -246,48 +246,57 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
   };
 
   return (
-    <div className={className} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className={['tenor', className].filter(Boolean).join(' ')}>
       <div className="tenor__header">
         <span className="tenor__title">Search Tenor</span>
         <span className="tenor__badge">Powered by Tenor</span>
       </div>
 
-      {!tenorApiKey && (
+      {!tenorApiKey && query.trim() && (
         <div className="tenor__warning">
           [CONFIG] Add VITE_TENOR_API_KEY to .env to enable search.
         </div>
       )}
 
-      <form onSubmit={handleSearch} style={{ flexShrink: 0 }}>
+      <form onSubmit={handleSearch} className="tenor__form">
+        <div className="tenor__search-shell">
+          <Search size={18} strokeWidth={1.6} aria-hidden="true" />
         <input
           type="text"
-          placeholder="Search for a GIF..."
+          placeholder="Search Tenor"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             if (error) setError(null);
           }}
-          disabled={!tenorApiKey}
           className="tenor__search-input"
-          style={!tenorApiKey ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+          aria-label="Search Tenor GIFs"
         />
+        </div>
       </form>
 
       {error && (
-        <p className="upload-zone__error" style={{ marginBottom: 'var(--space-sm)' }}>
+        <p className="upload-zone__error tenor__error">
           [ERROR] {error}
+        </p>
+      )}
+
+      {loading && (
+        <p className="player__loading-text tenor__status" role="status">
+          [LOADING...]
         </p>
       )}
 
       {results.length > 0 && (
         <div
           ref={scrollContainerRef}
-          className="scrollbar-hide"
-          style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '2px' }}
+          className="tenor__results scrollbar-hide"
+          aria-busy={loadingMore}
+          aria-label="Tenor GIF results"
         >
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+          <div className={['tenor__grid', gridClassName].filter(Boolean).join(' ')}>
             {results.map((result) => {
-              const previewUrl = result.media_formats?.tinygif?.url || result.media_formats?.gif?.url;
+              const previewUrl = getTenorPreviewUrl(result);
               const altText = result.content_description || result.title || 'Tenor GIF';
               if (!previewUrl) return null;
               return (
@@ -296,38 +305,18 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
                   type="button"
                   onClick={() => handleSelect(result)}
                   disabled={selectingId === result.id}
-                  style={{
-                    position: 'relative',
-                    aspectRatio: '1',
-                    overflow: 'hidden',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface)',
-                    cursor: 'pointer',
-                    padding: 0,
-                    transition: 'border-color 150ms',
-                    opacity: selectingId === result.id ? 0.5 : 1,
-                  }}
+                  className={`tenor__result ${selectingId === result.id ? 'tenor__result--selecting' : ''}`}
                   title={altText}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--text-secondary)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
                 >
                   <img
                     src={previewUrl}
                     alt={altText}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    className="tenor__result-image"
                     loading="lazy"
                   />
                   {selectingId === result.id && (
-                    <div style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: 'rgba(0,0,0,0.7)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <span className="player__loading-text" style={{ fontSize: 'var(--label)' }}>[LOADING...]</span>
+                    <div className="tenor__result-overlay">
+                      <span className="player__loading-text tenor__result-status">[LOADING...]</span>
                     </div>
                   )}
                 </button>
@@ -335,15 +324,22 @@ const TenorSearch: React.FC<TenorSearchProps> = ({
             })}
           </div>
           {nextPos && (
-            <div ref={loadMoreRef} style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-md) 0' }}>
-              {loadingMore && <span className="player__loading-text" style={{ fontSize: 'var(--label)' }}>[LOADING...]</span>}
+            <div className="tenor__load-more">
+              <button
+                type="button"
+                onClick={loadMore}
+                className="btn btn--secondary tenor__load-more-button"
+                disabled={loadingMore || loading}
+              >
+                {loadingMore ? '[LOADING...]' : 'Load More'}
+              </button>
             </div>
           )}
         </div>
       )}
 
       {hasSearched && !loading && results.length === 0 && !error && (
-        <p className="caption" style={{ marginTop: 'var(--space-md)' }}>No results found. Try another search.</p>
+        <p className="caption tenor__empty">No results found. Try another search.</p>
       )}
     </div>
   );
