@@ -301,8 +301,13 @@ test('mobile search drawer owns the bottom surface without duplicate actions', (
   );
   assert.match(
     css,
-    /\.mobile-action-bar\s*\{[\s\S]*?bottom:\s*calc\(25px \+ env\(safe-area-inset-bottom\)\);/,
-    'mobile action bar should sit at the recovered phone mockup offset'
+    /\.mobile-action-bar\s*\{[\s\S]*?bottom:\s*calc\(10px \+ env\(safe-area-inset-bottom\)\);/,
+    'mobile action bar should use native safe-area spacing instead of mock phone chrome spacing'
+  );
+  assert.match(
+    css,
+    /\.mobile-action-bar__button\s*\{[\s\S]*?min-height:\s*44px;/,
+    'mobile action bar buttons should keep touch-friendly hit targets'
   );
   assert.doesNotMatch(
     mobileSearchDrawerRule,
@@ -314,6 +319,12 @@ test('mobile search drawer owns the bottom surface without duplicate actions', (
 test('mobile settings stays in-flow so the preview remains editable', () => {
   const app = read('App.tsx');
   const css = read('index.css');
+
+  assert.doesNotMatch(
+    app,
+    /mobile-device-status|mobile-home-indicator/,
+    'mobile should not render fake device chrome inside the app'
+  );
 
   assert.match(
     app,
@@ -347,17 +358,17 @@ test('mobile settings stays in-flow so the preview remains editable', () => {
   assert.notEqual(mobileSettingsGridRule, '', 'mobile settings panel grid rule should exist');
   assert.match(
     mobileSettingsMainRule,
-    /height:\s*calc\(100dvh - 70px\);[\s\S]*?overflow:\s*hidden;/,
+    /height:\s*calc\(100dvh - 52px\);[\s\S]*?overflow:\s*hidden;/,
     'mobile settings should keep the viewport stationary while the panel content scrolls'
   );
   assert.match(
     mobileSettingsMainRule,
-    /padding-bottom:\s*calc\(66px \+ env\(safe-area-inset-bottom\)\);/,
-    'mobile settings shell should keep the accepted phone-frame bottom radius visible without moving the fixed action bar'
+    /padding-bottom:\s*calc\(76px \+ env\(safe-area-inset-bottom\)\);/,
+    'mobile settings shell should reserve room for the native bottom action bar'
   );
   assert.match(
     mobileSettingsCanvasRule,
-    /position:\s*sticky;[\s\S]*?top:\s*40px;/,
+    /position:\s*sticky;[\s\S]*?top:\s*0;/,
     'mobile settings should keep the preview visible while editing'
   );
   assert.match(
@@ -378,8 +389,8 @@ test('mobile settings stays in-flow so the preview remains editable', () => {
 
   assert.match(
     css,
-    /\.app-shell--mobile-settings \.col-controls \.card\s*\{[\s\S]*?padding:\s*6px 8px 6px;/,
-    'mobile settings card bottom padding should stay tight so the effects row visually fills the accepted mockup panel'
+    /\.app-shell--mobile-settings \.col-controls \.card\s*\{[\s\S]*?padding:\s*10px;/,
+    'mobile settings cards should have enough padding for touch-friendly controls'
   );
   assert.match(
     mobileSettingsGridRule,
@@ -398,8 +409,8 @@ test('mobile settings stays in-flow so the preview remains editable', () => {
   );
   assert.match(
     css,
-    /\.app-shell--mobile-settings \.section-panel--effects \.section-header\s*\{[\s\S]*?min-height:\s*14px;[\s\S]*?padding-bottom:\s*0;/,
-    'mobile effects header should use the accepted compact vertical rhythm'
+    /\.app-shell--mobile-settings \.section-panel--effects \.section-header\s*\{[\s\S]*?min-height:\s*32px;[\s\S]*?padding-bottom:\s*4px;/,
+    'mobile effects header should be large enough to tap comfortably'
   );
   assert.match(
     css,
@@ -408,8 +419,13 @@ test('mobile settings stays in-flow so the preview remains editable', () => {
   );
   assert.match(
     css,
-    /\.app-shell--mobile-settings \.effect-tile\s*\{[\s\S]*?min-height:\s*52px;[\s\S]*?padding:\s*4px 2px;/,
-    'mobile effects tiles should preserve the accepted mockup row height'
+    /\.app-shell--mobile-settings \.effects-compact-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);/,
+    'mobile effects should use two columns instead of cramped six-up toggles'
+  );
+  assert.match(
+    css,
+    /\.app-shell--mobile-settings \.effect-tile\s*\{[\s\S]*?min-height:\s*58px;[\s\S]*?padding:\s*7px 8px;/,
+    'mobile effects tiles should be touch-friendly'
   );
 });
 

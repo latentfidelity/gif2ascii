@@ -942,14 +942,6 @@ const App: React.FC = () => {
   return (
     <div className={`app-shell ${isPlaying ? 'app-shell--playing' : ''} ${mobilePanel ? 'app-shell--mobile-panel-open' : ''} ${isSettingsPanelOpen ? 'app-shell--mobile-settings' : ''} ${isSearchPanelOpen ? 'app-shell--mobile-search' : ''}`}>
       <KeyboardShortcuts />
-      <div className="mobile-device-status" aria-hidden="true">
-        <span className="mobile-device-status__time">9:41</span>
-        <span className="mobile-device-status__icons">
-          <span className="mobile-device-status__signal" />
-          <span className="mobile-device-status__wifi" />
-          <span className="mobile-device-status__battery" />
-        </span>
-      </div>
       {/* Header */}
       <header className="app-header">
         {isPlaying && (
@@ -1524,7 +1516,6 @@ const App: React.FC = () => {
           <Search size={16} strokeWidth={1.5} />Search
         </button>
       </div>
-      <div className="mobile-home-indicator" aria-hidden="true" />
 
       {isSearchPanelOpen && (
         <button
