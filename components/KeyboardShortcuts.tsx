@@ -10,31 +10,47 @@ const SHORTCUTS = [
   { keys: ['→'], action: 'Next frame' },
   { keys: ['Home'], action: 'First frame' },
   { keys: ['End'], action: 'Last frame' },
-  { keys: ['1–9'], action: 'Set playback speed' },
+  { keys: ['1–5'], action: 'Set speed preset' },
   { keys: ['?'], action: 'Toggle this overlay' },
   { keys: ['Esc'], action: 'Close overlay' },
 ];
+
+const INTERACTIVE_KEYBOARD_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  'button',
+  '[contenteditable="true"]',
+  '[role="button"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+  '[role="textbox"]',
+  '[role="combobox"]',
+].join(',');
+
+const isInteractiveKeyboardTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+
+  return Boolean(target.closest(INTERACTIVE_KEYBOARD_SELECTOR));
+};
 
 const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-
-      // Don't trigger on input fields
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+      if (e.key === 'Escape' && isOpen) {
+        e.preventDefault();
+        setIsOpen(false);
         return;
       }
+
+      if (isInteractiveKeyboardTarget(e.target)) return;
 
       if (e.key === '?') {
         e.preventDefault();
         setIsOpen(prev => !prev);
-      }
-
-      if (e.key === 'Escape' && isOpen) {
-        e.preventDefault();
-        setIsOpen(false);
       }
     };
 

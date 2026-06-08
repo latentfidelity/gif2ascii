@@ -1,13 +1,30 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
 }
 
+const SUPPORTED_IMAGE_TYPES = new Set([
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+]);
+const SUPPORTED_IMAGE_EXTENSIONS = ['.gif', '.jpg', '.jpeg', '.png', '.webp'];
+
+const isSupportedImageFile = (file: File): boolean => {
+  const type = file.type.toLowerCase();
+  if (SUPPORTED_IMAGE_TYPES.has(type)) return true;
+
+  const name = file.name.toLowerCase();
+  return type === '' && SUPPORTED_IMAGE_EXTENSIONS.some(ext => name.endsWith(ext));
+};
+
 const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -19,14 +36,14 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
     setIsDragging(false);
   }, []);
 
-  const validateAndPassFile = (file: File) => {
-    if (!file.type.includes('gif') && !file.type.includes('image')) {
-      setError("Please upload a GIF or image file.");
+  const validateAndPassFile = useCallback((file: File) => {
+    if (!isSupportedImageFile(file)) {
+      setError("Please upload a GIF, PNG, JPEG, or WebP file.");
       return;
     }
     setError(null);
     onFileSelect(file);
-  };
+  }, [onFileSelect]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -35,13 +52,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       validateAndPassFile(e.dataTransfer.files[0]);
     }
-  }, []);
+  }, [validateAndPassFile]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       validateAndPassFile(e.target.files[0]);
     }
-  };
+  }, [validateAndPassFile]);
 
   return (
     <div 
@@ -51,21 +68,26 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
       onDrop={handleDrop}
     >
       <input 
+        ref={inputRef}
         type="file" 
         id="fileInput" 
-        className="sr-only" 
+        className="file-input-hidden"
         accept="image/gif, image/jpeg, image/png, image/webp" 
         onChange={handleInputChange} 
       />
       
-      <label htmlFor="fileInput" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', cursor: 'pointer' }}>
+      <button
+        type="button"
+        className="upload-zone__button"
+        onClick={() => inputRef.current?.click()}
+      >
         <div className="upload-zone__icon">
           <Upload size={28} strokeWidth={1.5} />
         </div>
         
         <h3 className="upload-zone__title">Upload Image</h3>
         <p className="upload-zone__subtitle">Drag and drop or click to select</p>
-      </label>
+      </button>
       
       {error && (
         <p className="upload-zone__error">[ERROR] {error}</p>

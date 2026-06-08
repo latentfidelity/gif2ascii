@@ -29,6 +29,40 @@ const MATRIX_CHARS = 'アイウエオカキクケコサシスセソタチツテ�
 let matrixColumns: MatrixColumn[] = [];
 let lastMatrixInit = 0;
 
+const clampAlpha = (value: number): number => Math.max(0, Math.min(1, value));
+
+const parseHexColor = (color: string): [number, number, number] | null => {
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(color);
+  if (!match) return null;
+
+  const value = match[1];
+  return [
+    parseInt(value.slice(0, 2), 16),
+    parseInt(value.slice(2, 4), 16),
+    parseInt(value.slice(4, 6), 16),
+  ];
+};
+
+const fillPixelBuffer = (buffer: Uint8ClampedArray, backgroundColor: string): void => {
+  if (backgroundColor === 'transparent') {
+    buffer.fill(0);
+    return;
+  }
+
+  const rgb = parseHexColor(backgroundColor);
+  if (!rgb) {
+    buffer.fill(0);
+    return;
+  }
+
+  for (let i = 0; i < buffer.length; i += 4) {
+    buffer[i] = rgb[0];
+    buffer[i + 1] = rgb[1];
+    buffer[i + 2] = rgb[2];
+    buffer[i + 3] = 255;
+  }
+};
+
 /**
  * Initialize matrix rain columns for the given dimensions
  */
@@ -72,7 +106,7 @@ export const renderMatrixRain = (
     lastMatrixInit = cols;
   }
 
-  const alpha = (intensity / 100) * 0.8;
+  const alpha = clampAlpha((intensity / 100) * 0.8);
   ctx.font = `bold ${cellHeight}px "JetBrains Mono", monospace`;
   ctx.textBaseline = 'top';
 
@@ -121,7 +155,8 @@ export const applyWaveDistortion = (
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   intensity: number,
-  time: number
+  time: number,
+  backgroundColor: string
 ): void => {
   if (intensity <= 0) return;
 
@@ -130,8 +165,7 @@ export const applyWaveDistortion = (
   const data = imageData.data;
   const result = new Uint8ClampedArray(data.length);
 
-  // Fill with transparent/black first
-  result.fill(0);
+  fillPixelBuffer(result, backgroundColor);
 
   const amplitude = (intensity / 100) * 10; // Max 10 pixel shift
   const frequency = 0.02 + (intensity / 100) * 0.03;
@@ -181,6 +215,11 @@ export const getTypingRevealMask = (
   time: number,
   speed: number = 50 // characters per second
 ): number => {
+  if (lastTypingUpdate === 0 || time < lastTypingUpdate) {
+    lastTypingUpdate = time;
+    return Math.min(totalChars, Math.floor(typingRevealProgress));
+  }
+
   const timeDelta = time - lastTypingUpdate;
 
   if (timeDelta > 20) { // Update every 20ms
@@ -207,7 +246,9 @@ export const applyTypingReveal = (
   const rows = Math.floor(height / cellHeight);
   const totalChars = cols * rows;
 
-  const visibleChars = getTypingRevealMask(totalChars, time, 100);
+  const revealDurationSeconds = 4;
+  const revealSpeed = Math.max(100, totalChars / revealDurationSeconds);
+  const visibleChars = getTypingRevealMask(totalChars, time, revealSpeed);
 
   if (visibleChars >= totalChars) {
     return true; // Effect complete
@@ -217,12 +258,19 @@ export const applyTypingReveal = (
   const visibleRows = Math.floor(visibleChars / cols);
   const partialRowChars = visibleChars % cols;
 
-  // Fill everything after the visible portion with background
-  ctx.fillStyle = backgroundColor === 'transparent' ? 'rgba(0,0,0,0)' : backgroundColor;
+  const maskRect = (x: number, y: number, maskWidth: number, maskHeight: number) => {
+    if (backgroundColor === 'transparent') {
+      ctx.clearRect(x, y, maskWidth, maskHeight);
+      return;
+    }
+
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(x, y, maskWidth, maskHeight);
+  };
 
   // Mask partial row
   if (visibleRows < rows) {
-    ctx.fillRect(
+    maskRect(
       partialRowChars * cellWidth,
       visibleRows * cellHeight,
       width - partialRowChars * cellWidth,
@@ -231,7 +279,7 @@ export const applyTypingReveal = (
 
     // Mask remaining rows
     if (visibleRows + 1 < rows) {
-      ctx.fillRect(
+      maskRect(
         0,
         (visibleRows + 1) * cellHeight,
         width,

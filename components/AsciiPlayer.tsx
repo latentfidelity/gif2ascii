@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Download, Video, FileImage, Copy, FileText, ChevronLeft, ChevronRight, Code, Terminal } from 'lucide-react';
+import React, { useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
+import { Play, Pause, RotateCcw, Download, Video, FileImage, Copy, FileText, ChevronLeft, ChevronRight, Maximize, SkipBack, SkipForward } from 'lucide-react';
 import { parseGIF, decompressFrames } from 'gifuct-js';
 import { GIFEncoder, quantize, applyPalette } from 'gifenc';
-import { AsciiConfig } from '../types';
-import { resizeAndGetImageData, convertToAscii, AsciiResult } from '../services/asciiUtils';
+import { AsciiConfig, type PlaybackLoopMode } from '../types';
+import { resizeAndGetImageData, convertToAscii } from '../services/asciiUtils';
 import { exportVideo, downloadBlob, isMP4ExportSupported } from '../services/videoExport';
 import { applyPostProcessing, hasPostProcessing } from '../services/postProcessing';
 import { renderMatrixRain, applyWaveDistortion, applyTypingReveal, resetTypingReveal, hasAnimationEffects } from '../services/animationEffects';
@@ -28,7 +28,16 @@ interface AsciiPlayerProps {
   outputWidth?: number;
   outputHeight?: number;
   export2x?: boolean;
+  frameRate?: number;
+  playbackSpeed?: number;
+  loopMode?: PlaybackLoopMode;
+  onPlaybackSpeedChange?: (speed: number) => void;
+  onNativeFrameRate?: (frameRate: number | null) => void;
   onFrame?: (base64Frame: string) => void;
+}
+
+export interface AsciiPlayerHandle {
+  exportPng: () => void;
 }
 
 // Types for gifuct-js frames
@@ -42,6 +51,94 @@ interface GifFrame {
 }
 
 const VIDEO_EXPORT_BITRATE = 8000000;
+const MIN_PLAYER_WIDTH = 320;
+const MIN_PLAYER_HEIGHT = 260;
+const DEFAULT_PLAYER_WIDTH = 400;
+const DEFAULT_PLAYER_HEIGHT = 300;
+const DEFAULT_GIF_FRAME_DELAY_MS = 100;
+const PLAYBACK_SPEED_PRESETS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const INTERACTIVE_KEYBOARD_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  'button',
+  '[contenteditable="true"]',
+  '[role="button"]',
+  '[role="slider"]',
+  '[role="spinbutton"]',
+  '[role="textbox"]',
+  '[role="combobox"]',
+].join(',');
+
+const isInteractiveKeyboardTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+
+  return Boolean(target.closest(INTERACTIVE_KEYBOARD_SELECTOR));
+};
+
+const parseCssPixels = (value: string): number => {
+  if (!value || value === 'none') return 0;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getEffectiveFrameDelay = (delay: number): number => (
+  delay > 0 ? delay : DEFAULT_GIF_FRAME_DELAY_MS
+);
+
+const getNativeFrameRate = (frames: GifFrame[]): number | null => {
+  if (frames.length <= 1) return null;
+
+  const totalDelay = frames.reduce((sum, frame) => (
+    sum + getEffectiveFrameDelay(frame.delay)
+  ), 0);
+
+  if (totalDelay <= 0) return null;
+  return 1000 / (totalDelay / frames.length);
+};
+
+interface GifRestoreState {
+  imageData: ImageData;
+  left: number;
+  top: number;
+}
+
+const drawGifFrameToComposition = (
+  ctx: CanvasRenderingContext2D,
+  patchCtx: CanvasRenderingContext2D | null,
+  patchCanvas: HTMLCanvasElement | null,
+  frame: GifFrame
+): GifRestoreState | null => {
+  const { width, height, top, left } = frame.dims;
+  const restoreState = frame.disposalType === 3
+    ? { imageData: ctx.getImageData(left, top, width, height), left, top }
+    : null;
+
+  if (frame.patch && patchCtx && patchCanvas) {
+    const patchData = new ImageData(frame.patch, width, height);
+    patchCanvas.width = width;
+    patchCanvas.height = height;
+    patchCtx.putImageData(patchData, 0, 0);
+    ctx.drawImage(patchCanvas, left, top);
+  }
+
+  return restoreState;
+};
+
+const disposeGifFrameFromComposition = (
+  ctx: CanvasRenderingContext2D,
+  frame: GifFrame,
+  restoreState: GifRestoreState | null
+): void => {
+  const { width, height, top, left } = frame.dims;
+
+  if (frame.disposalType === 2) {
+    ctx.clearRect(left, top, width, height);
+  } else if (frame.disposalType === 3 && restoreState) {
+    ctx.putImageData(restoreState.imageData, restoreState.left, restoreState.top);
+  }
+};
 
 // Floyd-Steinberg dithering for better GIF quality
 const applyFloydSteinberg = (
@@ -136,8 +233,21 @@ const getCenteredCropRect = (width: number, height: number, targetAspect: number
   return { x: cropX, y: cropY, width: cropWidth, height: cropHeight };
 };
 
-const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth, outputHeight, export2x = false, onFrame }) => {
+const AsciiPlayer = React.forwardRef<AsciiPlayerHandle, AsciiPlayerProps>(({
+  imageSrc,
+  config,
+  outputWidth,
+  outputHeight,
+  export2x = false,
+  frameRate,
+  playbackSpeed,
+  loopMode = 'forever',
+  onPlaybackSpeedChange,
+  onNativeFrameRate,
+  onFrame,
+}, ref) => {
   const exportScale = export2x ? 2 : 1;
+  const shellRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   
@@ -158,11 +268,24 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const [exportProgress, setExportProgress] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
   const [displaySize, setDisplaySize] = useState<{ width: number; height: number }>({ width: 1, height: 1 });
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [internalPlaybackSpeed, setInternalPlaybackSpeed] = useState(1);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [lastAsciiText, setLastAsciiText] = useState<string>('');
-  const outputAspectRatio = outputWidth && outputHeight ? outputWidth / outputHeight : 0;
-  const displayAspectRatio = outputAspectRatio > 0 ? outputAspectRatio : aspectRatio;
+  const [copyStatus, setCopyStatus] = useState<{ target: 'image' | 'text'; state: 'copied' | 'failed' } | null>(null);
+  const typingRevealEnabled = config.animationEffects?.typingReveal ?? false;
+  const hasAnimatedFrames = !isStaticImage && frames.length > 1;
+  const needsContinuousRender =
+    (config.animationEffects && hasAnimationEffects(config.animationEffects)) ||
+    (config.postProcessing?.flicker ?? 0) > 0;
+  const displayPlaybackSpeed = playbackSpeed ?? internalPlaybackSpeed;
+  const targetFrameRate = frameRate && frameRate > 0 ? frameRate : null;
+  const setDisplayPlaybackSpeed = useCallback((speed: number) => {
+    if (onPlaybackSpeedChange) {
+      onPlaybackSpeedChange(speed);
+      return;
+    }
+    setInternalPlaybackSpeed(speed);
+  }, [onPlaybackSpeedChange]);
 
   // Animation State Refs (Mutable for performance in loop)
   const frameIndexRef = useRef(0);
@@ -170,6 +293,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   const requestRef = useRef<number>();
   const frameCapturedRef = useRef<boolean>(false);
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null); // For resizing
+  const displayedFrameIndexRef = useRef(0);
     
   // Helper: Offscreen canvas for scaling
   const getOffscreenCanvas = () => {
@@ -188,7 +312,10 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     setIsStaticImage(false);
     setIsPlaying(true); // Reset to playing when loading new file
     frameIndexRef.current = 0;
+    displayedFrameIndexRef.current = 0;
+    lastFrameTimeRef.current = 0;
     frameCapturedRef.current = false;
+    setCurrentFrameIndex(0);
 
     // Cleanup previous composition
     compositionCanvasRef.current = null;
@@ -228,6 +355,8 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
                   setFrames(loadedFrames);
                   setIsStaticImage(false);
+                  setIsPlaying(loadedFrames.length > 1);
+                  onNativeFrameRate?.(getNativeFrameRate(loadedFrames));
               } else {
                   throw new Error("No frames found in GIF");
               }
@@ -235,14 +364,21 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
           }
         } else {
           // Load as static image (PNG, JPEG, WebP)
-          const blob = new Blob([buffer]);
-          const img = new Image();
-          img.src = URL.createObjectURL(blob);
-
-          await new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve();
-            img.onerror = () => reject(new Error("Failed to load image"));
+          const blob = new Blob([buffer], {
+            type: resp.headers.get('content-type') || undefined,
           });
+          const img = new Image();
+          const imageObjectUrl = URL.createObjectURL(blob);
+          img.src = imageObjectUrl;
+
+          try {
+            await new Promise<void>((resolve, reject) => {
+              img.onload = () => resolve();
+              img.onerror = () => reject(new Error("Failed to load image"));
+            });
+          } finally {
+            URL.revokeObjectURL(imageObjectUrl);
+          }
 
           if (active) {
             const width = img.naturalWidth;
@@ -262,13 +398,11 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
               ctx.drawImage(img, 0, 0);
             }
 
-            // Cleanup blob URL
-            URL.revokeObjectURL(img.src);
-
             // For static images, we don't use frames array
             setFrames([]);
             setIsStaticImage(true);
             setIsPlaying(false); // No animation for static images
+            onNativeFrameRate?.(null);
             setIsLoading(false);
           }
         }
@@ -283,34 +417,48 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
     loadImage();
     return () => { active = false; };
-  }, [imageSrc]);
+  }, [imageSrc, onNativeFrameRate]);
+
+  useEffect(() => {
+    if (typingRevealEnabled) {
+      resetTypingReveal();
+    }
+  }, [typingRevealEnabled, imageSrc]);
 
   // Core Render Logic (Draws to canvasRef based on current composition)
-  const renderCurrentFrameToCanvas = useCallback((targetCanvas?: HTMLCanvasElement, includeOverlay?: boolean, time?: number) => {
+  const renderCurrentFrameToCanvas = useCallback((
+    targetCanvas?: HTMLCanvasElement,
+    includeOverlay?: boolean,
+    time?: number,
+    sourceCanvasOverride?: HTMLCanvasElement,
+    updateLastAsciiText = true
+  ) => {
      const finalCanvas = targetCanvas || canvasRef.current;
-     if (!finalCanvas || !compositionCanvasRef.current) return null;
+     const sourceCanvas = sourceCanvasOverride || compositionCanvasRef.current;
+     if (!finalCanvas || !sourceCanvas) return null;
      
-     const finalCtx = finalCanvas.getContext('2d');
+     const finalCtx = finalCanvas.getContext('2d', { willReadFrequently: true });
      if (!finalCtx) return null;
 
-     const hasTransparentBg = config.backgroundColor === 'transparent';
+     const renderConfig = config;
+     const hasTransparentBg = renderConfig.backgroundColor === 'transparent';
      const outputAspectRatio = outputWidth && outputHeight
         ? outputHeight / outputWidth
         : undefined;
-     const cropRect = outputAspectRatio && compositionCanvasRef.current
+     const cropRect = outputAspectRatio
         ? getCenteredCropRect(
-            compositionCanvasRef.current.width,
-            compositionCanvasRef.current.height,
+            sourceCanvas.width,
+            sourceCanvas.height,
             outputAspectRatio
           )
         : null;
      let imageData = resizeAndGetImageData(
-        compositionCanvasRef.current,
-        config.resolution,
-        config.fontAspectRatio,
+        sourceCanvas,
+        renderConfig.resolution,
+        renderConfig.fontAspectRatio,
         getOffscreenCanvas(),
         outputAspectRatio,
-        config.sharpness || 0
+        renderConfig.sharpness || 0
      );
 
      if (!imageData) return null;
@@ -319,19 +467,22 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         imageData,
         imageData.width,
         imageData.height,
-        config
+        renderConfig
      );
      const asciiString = asciiResult.text;
      const colors = asciiResult.colors;
+     const underpaintAlphas = asciiResult.underpaintAlphas;
 
-     // Store last ASCII text for copy function
-     setLastAsciiText(asciiString);
+     // Store last ASCII text for copy function during preview renders.
+     if (updateLastAsciiText) {
+       setLastAsciiText(asciiString);
+     }
 
      // Clear and Draw Text
      if (hasTransparentBg) {
          finalCtx.clearRect(0, 0, finalCanvas.width, finalCanvas.height);
      } else {
-         finalCtx.fillStyle = config.backgroundColor;
+         finalCtx.fillStyle = renderConfig.backgroundColor;
          finalCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
      }
 
@@ -347,7 +498,26 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
          const cellWidth = finalCanvas.width / cols;
          finalCtx.font = `bold ${cellHeight * 1.05}px "JetBrains Mono", monospace`;
 
-         if (colors && config.useSourceColor) {
+         if (colors && renderConfig.useSourceColor) {
+             // Tint sparse glyph cells so source color survives the ASCII negative space.
+             if (!hasTransparentBg && underpaintAlphas) {
+                 finalCtx.save();
+                 for (let y = 0; y < rows; y++) {
+                     const rowColors = colors[y] || [];
+                     const rowUnderpaintAlphas = underpaintAlphas[y] || [];
+                     for (let x = 0; x < cols; x++) {
+                         const charColor = rowColors[x];
+                         const underpaintAlpha = rowUnderpaintAlphas[x] || 0;
+                         if (charColor && charColor !== 'transparent' && underpaintAlpha > 0) {
+                             finalCtx.globalAlpha = underpaintAlpha;
+                             finalCtx.fillStyle = charColor;
+                             finalCtx.fillRect(x * cellWidth, y * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
+                         }
+                     }
+                 }
+                 finalCtx.restore();
+             }
+
              // Per-character color rendering
              for (let y = 0; y < rows; y++) {
                  const line = lines[y];
@@ -363,19 +533,19 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
              }
          } else {
              // Single color rendering (original)
-             finalCtx.fillStyle = config.color;
+             finalCtx.fillStyle = renderConfig.color;
              for (let i = 0; i < rows; i++) {
                  finalCtx.fillText(lines[i], 0, i * cellHeight, finalCanvas.width);
              }
          }
      }
 
-     if (includeOverlay && config.overlayOpacity > 0) {
+     if (includeOverlay && renderConfig.overlayOpacity > 0) {
          finalCtx.save();
-         finalCtx.globalAlpha = Math.min(1, Math.max(0, config.overlayOpacity));
+         finalCtx.globalAlpha = Math.min(1, Math.max(0, renderConfig.overlayOpacity));
          if (cropRect) {
             finalCtx.drawImage(
-              compositionCanvasRef.current,
+              sourceCanvas,
               cropRect.x,
               cropRect.y,
               cropRect.width,
@@ -387,7 +557,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
             );
          } else {
             finalCtx.drawImage(
-              compositionCanvasRef.current,
+              sourceCanvas,
               0,
               0,
               finalCanvas.width,
@@ -399,35 +569,41 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
      // Apply post-processing effects (CRT, glow, etc.)
      const currentTime = time ?? Date.now();
-     if (includeOverlay && config.postProcessing && hasPostProcessing(config.postProcessing)) {
-         applyPostProcessing(finalCanvas, config.postProcessing, currentTime);
+     if (includeOverlay && renderConfig.postProcessing && hasPostProcessing(renderConfig.postProcessing)) {
+         applyPostProcessing(finalCanvas, renderConfig.postProcessing, currentTime);
      }
 
      // Apply animation effects (matrix rain, wave distortion, typing reveal)
-     if (includeOverlay && config.animationEffects && hasAnimationEffects(config.animationEffects)) {
+     if (includeOverlay && renderConfig.animationEffects && hasAnimationEffects(renderConfig.animationEffects)) {
          const rows = lines.length;
          const cols = lines[0]?.length || 1;
          const cellHeight = finalCanvas.height / rows;
          const cellWidth = finalCanvas.width / cols;
 
          // Wave distortion (applies to whole canvas)
-         if (config.animationEffects.waveDistortion > 0) {
-             applyWaveDistortion(finalCtx, finalCanvas, config.animationEffects.waveDistortion, currentTime);
+         if (renderConfig.animationEffects.waveDistortion > 0) {
+             applyWaveDistortion(
+               finalCtx,
+               finalCanvas,
+               renderConfig.animationEffects.waveDistortion,
+               currentTime,
+               renderConfig.backgroundColor
+             );
          }
 
          // Matrix rain overlay
-         if (config.animationEffects.matrixRain > 0) {
-             renderMatrixRain(finalCtx, finalCanvas.width, finalCanvas.height, cellWidth, cellHeight, config.animationEffects.matrixRain, currentTime);
+         if (renderConfig.animationEffects.matrixRain > 0) {
+             renderMatrixRain(finalCtx, finalCanvas.width, finalCanvas.height, cellWidth, cellHeight, renderConfig.animationEffects.matrixRain, currentTime);
          }
 
          // Typing reveal (for static images or paused GIFs)
-         if (config.animationEffects.typingReveal) {
-             applyTypingReveal(finalCtx, finalCanvas.width, finalCanvas.height, cellWidth, cellHeight, currentTime, config.backgroundColor);
+         if (renderConfig.animationEffects.typingReveal) {
+             applyTypingReveal(finalCtx, finalCanvas.width, finalCanvas.height, cellWidth, cellHeight, currentTime, renderConfig.backgroundColor);
          }
      }
 
      return { finalCtx, finalCanvas };
-  }, [config]);
+  }, [config, outputWidth, outputHeight]);
 
 
   // 2a. Render static image when config or canvas size changes
@@ -435,9 +611,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     if (!isStaticImage || isLoading || !compositionCanvasRef.current || !canvasRef.current) return;
 
     // Check if animation effects need continuous updates
-    const needsAnimationLoop = config.animationEffects && hasAnimationEffects(config.animationEffects);
-
-    if (needsAnimationLoop) {
+    if (needsContinuousRender) {
       // Animation effects need continuous rendering
       let animationId: number;
       const animate = () => {
@@ -469,7 +643,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         } catch(e) {}
       }
     }
-  }, [isStaticImage, isLoading, config, displaySize, renderCurrentFrameToCanvas, onFrame]);
+  }, [isStaticImage, isLoading, config, displaySize, renderCurrentFrameToCanvas, onFrame, needsContinuousRender]);
 
   // 2a-2. Re-render paused animated GIF when config changes
   useEffect(() => {
@@ -478,9 +652,7 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     if (!compositionCanvasRef.current || !canvasRef.current) return;
 
     // Check if animation effects need continuous updates
-    const needsAnimationLoop = config.animationEffects && hasAnimationEffects(config.animationEffects);
-
-    if (needsAnimationLoop) {
+    if (needsContinuousRender) {
       // Animation effects need continuous rendering even when paused
       let animationId: number;
       const animate = () => {
@@ -493,25 +665,29 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
       // Re-render the current frame with updated config
       renderCurrentFrameToCanvas(undefined, true);
     }
-  }, [isStaticImage, isPlaying, isLoading, frames.length, config, displaySize, renderCurrentFrameToCanvas]);
+  }, [isStaticImage, isPlaying, isLoading, frames.length, config, displaySize, renderCurrentFrameToCanvas, needsContinuousRender]);
 
   // 2b. Render Loop (Playback for animated GIFs)
   const renderLoop = useCallback((timestamp: number) => {
-    // Skip render loop for static images - they're rendered in the effect above
-    if (isStaticImage || !isPlaying || isExporting || !canvasRef.current || frames.length === 0 || !compositionCtxRef.current || !compositionCanvasRef.current) {
-      requestRef.current = requestAnimationFrame(renderLoop);
+    if (
+      !hasAnimatedFrames ||
+      !canvasRef.current ||
+      !compositionCtxRef.current ||
+      !compositionCanvasRef.current
+    ) {
       return;
     }
 
-    const currentFrame = frames[frameIndexRef.current];
+    const renderedFrameIndex = frameIndexRef.current;
+    const currentFrame = frames[renderedFrameIndex];
 
     // Playback Timing:
     // If delay is 0, we treat it as 100ms for playback comfort,
     // unless it's a very high framerate gif where 0 means "as fast as possible".
     // Standard browsers treat 0 as 100ms (10fps).
-    const baseDelay = currentFrame.delay === 0 ? 100 : currentFrame.delay;
+    const baseDelay = targetFrameRate ? 1000 / targetFrameRate : getEffectiveFrameDelay(currentFrame.delay);
     // Apply playback speed (higher speed = shorter delay)
-    const delay = baseDelay / playbackSpeed;
+    const delay = baseDelay / displayPlaybackSpeed;
 
     // Check if it's time to advance frame
     if (timestamp - lastFrameTimeRef.current >= delay) {
@@ -519,15 +695,12 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         // --- COMPOSITION UPDATE ---
         const ctx = compositionCtxRef.current;
         const frame = currentFrame;
-        const { width, height, top, left } = frame.dims;
-
-        if (frame.patch && patchCtxRef.current && patchCanvasRef.current) {
-            const patchData = new ImageData(frame.patch, width, height);
-            patchCanvasRef.current.width = width;
-            patchCanvasRef.current.height = height;
-            patchCtxRef.current.putImageData(patchData, 0, 0);
-            ctx.drawImage(patchCanvasRef.current, left, top);
-        }
+        const restoreState = drawGifFrameToComposition(
+            ctx,
+            patchCtxRef.current,
+            patchCanvasRef.current,
+            frame
+        );
 
         // --- RENDER ASCII TO SCREEN ---
         const renderResult = renderCurrentFrameToCanvas(undefined, true, timestamp);
@@ -544,71 +717,161 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         // Advance Frame
         lastFrameTimeRef.current = timestamp;
 
-        // Handle disposal 2 (Clear) for NEXT frame
-        if (frame.disposalType === 2) {
-             ctx.clearRect(left, top, width, height);
-        }
+        disposeGifFrameFromComposition(ctx, frame, restoreState);
 
-        frameIndexRef.current = (frameIndexRef.current + 1) % frames.length;
-        setCurrentFrameIndex(frameIndexRef.current);
+        displayedFrameIndexRef.current = renderedFrameIndex;
+        const nextFrameIndex = renderedFrameIndex + 1;
+        if (nextFrameIndex >= frames.length) {
+          frameIndexRef.current = loopMode === 'forever' ? 0 : frames.length - 1;
+          if (loopMode === 'once') {
+            setIsPlaying(false);
+          }
+        } else {
+          frameIndexRef.current = nextFrameIndex;
+        }
+        setCurrentFrameIndex(renderedFrameIndex);
     }
 
     requestRef.current = requestAnimationFrame(renderLoop);
-  }, [isStaticImage, isPlaying, isExporting, frames, config, onFrame, renderCurrentFrameToCanvas, playbackSpeed]);
+  }, [hasAnimatedFrames, frames, onFrame, renderCurrentFrameToCanvas, displayPlaybackSpeed, targetFrameRate, loopMode]);
 
   // Start/Stop Loop
   useEffect(() => {
+    if (!hasAnimatedFrames || !isPlaying || isExporting || isLoading) {
+      return;
+    }
+
     requestRef.current = requestAnimationFrame(renderLoop);
     return () => {
-        if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+        requestRef.current = undefined;
+      }
     };
-  }, [renderLoop]);
+  }, [hasAnimatedFrames, isPlaying, isExporting, isLoading, renderLoop]);
+
+  const getBaseDisplaySize = useCallback(() => {
+    const hasOutputWidth = Boolean(outputWidth && outputWidth > 0);
+    const hasOutputHeight = Boolean(outputHeight && outputHeight > 0);
+    const sourceAspect = aspectRatio > 0 ? aspectRatio : 1;
+
+    if (hasOutputWidth && hasOutputHeight) {
+      return {
+        width: Math.max(1, Math.floor(outputWidth!)),
+        height: Math.max(1, Math.floor(outputHeight!)),
+      };
+    }
+
+    if (hasOutputWidth) {
+      const width = Math.max(1, Math.floor(outputWidth!));
+      return {
+        width,
+        height: Math.max(1, Math.round(width / sourceAspect)),
+      };
+    }
+
+    if (hasOutputHeight) {
+      const height = Math.max(1, Math.floor(outputHeight!));
+      return {
+        width: Math.max(1, Math.round(height * sourceAspect)),
+        height,
+      };
+    }
+
+    return {
+      width: DEFAULT_PLAYER_WIDTH,
+      height: Math.max(1, Math.round(DEFAULT_PLAYER_WIDTH / sourceAspect || DEFAULT_PLAYER_HEIGHT)),
+    };
+  }, [aspectRatio, outputHeight, outputWidth]);
+
+  const getFittedDisplaySize = useCallback(() => {
+    const baseSize = getBaseDisplaySize();
+    const shell = shellRef.current;
+    const frame = frameRef.current;
+    const host = shell?.parentElement;
+    const hostWidth = host?.clientWidth || shell?.clientWidth || baseSize.width;
+    const cssMaxHeight = frame ? parseCssPixels(window.getComputedStyle(frame).maxHeight) : 0;
+    const fallbackMaxHeight = Math.max(MIN_PLAYER_HEIGHT, Math.round(window.innerHeight * 0.58));
+    const maxWidth = Math.max(1, hostWidth);
+    const maxHeight = Math.max(1, cssMaxHeight || fallbackMaxHeight);
+
+    const fitScale = Math.min(maxWidth / baseSize.width, maxHeight / baseSize.height);
+    const preferredScale = Math.max(
+      1,
+      MIN_PLAYER_WIDTH / baseSize.width,
+      MIN_PLAYER_HEIGHT / baseSize.height
+    );
+    const scale = Math.max(0.01, Math.min(preferredScale, fitScale));
+
+    return {
+      width: Math.max(1, Math.round(baseSize.width * scale)),
+      height: Math.max(1, Math.round(baseSize.height * scale)),
+    };
+  }, [getBaseDisplaySize]);
+
+  useEffect(() => {
+    const updateDisplaySize = () => {
+      const next = getFittedDisplaySize();
+      setDisplaySize((prev) => {
+        if (prev.width === next.width && prev.height === next.height) return prev;
+        return next;
+      });
+    };
+
+    updateDisplaySize();
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateDisplaySize)
+      : null;
+
+    if (resizeObserver) {
+      if (shellRef.current) resizeObserver.observe(shellRef.current);
+      if (shellRef.current?.parentElement) resizeObserver.observe(shellRef.current.parentElement);
+      if (frameRef.current) resizeObserver.observe(frameRef.current);
+    }
+
+    window.addEventListener('resize', updateDisplaySize);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateDisplaySize);
+    };
+  }, [getFittedDisplaySize]);
 
   // Size and Canvas Setup
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Calculate display size from output dimensions
-    const width = Math.max(1, Math.floor(outputWidth || 400));
-    const height = Math.max(1, Math.floor(outputHeight || 300));
-
-    setDisplaySize((prev) => {
-      if (prev.width === width && prev.height === height) return prev;
-      return { width, height };
-    });
-
-    // Don't resize canvas while loading - it clears the canvas and we have no content to redraw
+    // Don't resize canvas while loading - it clears the canvas and we have no content to redraw.
     if (isLoading) return;
 
     let canvasResized = false;
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
+    if (canvas.width !== displaySize.width || canvas.height !== displaySize.height) {
+      canvas.width = displaySize.width;
+      canvas.height = displaySize.height;
       canvasResized = true;
     }
 
-    // For static images, render immediately after resize to prevent flicker
+    // For static images, render immediately after resize to prevent flicker.
     if (canvasResized && isStaticImage && compositionCanvasRef.current) {
       renderCurrentFrameToCanvas(undefined, true);
     }
-  }, [outputWidth, outputHeight, isStaticImage, isLoading, renderCurrentFrameToCanvas]);
+  }, [displaySize, isStaticImage, isLoading, renderCurrentFrameToCanvas]);
 
-  const togglePlay = () => setIsPlaying(!isPlaying);
-  
   const restart = () => {
     frameIndexRef.current = 0;
+    displayedFrameIndexRef.current = 0;
+    lastFrameTimeRef.current = 0;
+    setCurrentFrameIndex(0);
     if (compositionCtxRef.current && compositionCanvasRef.current) {
         compositionCtxRef.current.clearRect(0, 0, compositionCanvasRef.current.width, compositionCanvasRef.current.height);
     }
     setIsPlaying(true);
   };
 
-  // --- PNG EXPORT (for static images) ---
-  const handleExportPng = useCallback(() => {
-    if (!canvasRef.current || !compositionCanvasRef.current) return;
+  const createVisualExportCanvas = useCallback((time = Date.now()): HTMLCanvasElement | null => {
+    if (!canvasRef.current || !compositionCanvasRef.current) return null;
 
-    // Create export canvas at appropriate size
     const compCanvas = compositionCanvasRef.current;
     const aspect = compCanvas.height / compCanvas.width;
     const baseWidth = Math.max(
@@ -626,8 +889,14 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     exportCanvas.width = exportWidth;
     exportCanvas.height = exportHeight;
 
-    // Render to export canvas
-    renderCurrentFrameToCanvas(exportCanvas, false);
+    const result = renderCurrentFrameToCanvas(exportCanvas, true, time, undefined, false);
+    return result?.finalCanvas ?? null;
+  }, [outputWidth, outputHeight, exportScale, renderCurrentFrameToCanvas]);
+
+  // --- PNG EXPORT (for static images) ---
+  const handleExportPng = useCallback(() => {
+    const exportCanvas = createVisualExportCanvas();
+    if (!exportCanvas) return;
 
     // Download
     const url = exportCanvas.toDataURL('image/png');
@@ -638,137 +907,80 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-  }, [outputWidth, outputHeight, exportScale, renderCurrentFrameToCanvas]);
+  }, [createVisualExportCanvas]);
+
+  useImperativeHandle(ref, () => ({
+    exportPng: handleExportPng,
+  }), [handleExportPng]);
 
   // --- COPY TO CLIPBOARD ---
   const copyImageToClipboard = useCallback(async () => {
     if (!canvasRef.current) return;
     try {
+      if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+        throw new Error('Image clipboard is not supported');
+      }
+
       const blob = await new Promise<Blob | null>((resolve) =>
         canvasRef.current!.toBlob(resolve, 'image/png')
       );
-      if (blob) {
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
-        ]);
+
+      if (!blob) {
+        throw new Error('Canvas did not produce an image');
       }
-    } catch (e) {
-      console.error('Failed to copy image:', e);
+
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      setCopyStatus({ target: 'image', state: 'copied' });
+    } catch {
+      setCopyStatus({ target: 'image', state: 'failed' });
+    }
+  }, []);
+
+  const copyTextWithFallback = useCallback(async (text: string): Promise<void> => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    textarea.setAttribute('readonly', 'true');
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+      if (!document.execCommand('copy')) {
+        throw new Error('Text clipboard fallback failed');
+      }
+    } finally {
+      document.body.removeChild(textarea);
     }
   }, []);
 
   const copyTextToClipboard = useCallback(async () => {
-    if (!lastAsciiText) return;
+    if (!lastAsciiText) {
+      setCopyStatus({ target: 'text', state: 'failed' });
+      return;
+    }
+
     try {
-      await navigator.clipboard.writeText(lastAsciiText);
-    } catch (e) {
-      console.error('Failed to copy text:', e);
+      await copyTextWithFallback(lastAsciiText);
+      setCopyStatus({ target: 'text', state: 'copied' });
+    } catch {
+      setCopyStatus({ target: 'text', state: 'failed' });
     }
-  }, [lastAsciiText]);
+  }, [copyTextWithFallback, lastAsciiText]);
 
-  // --- ANSI/HTML EXPORT ---
-  const exportAsHtml = useCallback(() => {
-    if (!canvasRef.current || !compositionCanvasRef.current) return;
-
-    // Get current ASCII with colors
-    const outputAspectRatio = outputWidth && outputHeight
-      ? outputHeight / outputWidth
-      : undefined;
-    let imageData = resizeAndGetImageData(
-      compositionCanvasRef.current,
-      config.resolution,
-      config.fontAspectRatio,
-      getOffscreenCanvas(),
-      outputAspectRatio,
-      config.sharpness || 0
-    );
-    if (!imageData) return;
-
-    const asciiResult = convertToAscii(imageData, imageData.width, imageData.height, config);
-    const lines = asciiResult.text.split('\n').filter(l => l.length > 0);
-    const colors = asciiResult.colors;
-
-    // Build HTML
-    let html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>ASCII Art</title>
-  <style>
-    body { margin: 0; padding: 20px; background: ${config.backgroundColor === 'transparent' ? '#000' : config.backgroundColor}; }
-    pre { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 12px; line-height: 1; margin: 0; }
-    span { display: inline-block; width: 1ch; text-align: center; }
-  </style>
-</head>
-<body>
-<pre>`;
-
-    for (let y = 0; y < lines.length; y++) {
-      const line = lines[y];
-      for (let x = 0; x < line.length; x++) {
-        const char = line[x];
-        const color = colors && config.useSourceColor ? colors[y]?.[x] : config.color;
-        if (color && color !== 'transparent') {
-          html += `<span style="color:${color}">${char === ' ' ? '&nbsp;' : char.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
-        } else {
-          html += `<span>${char === ' ' ? '&nbsp;' : char.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span>`;
-        }
-      }
-      html += '\n';
-    }
-
-    html += `</pre>
-</body>
-</html>`;
-
-    const blob = new Blob([html], { type: 'text/html' });
-    downloadBlob(blob, `ascii-art-${Date.now()}.html`);
-  }, [config, outputWidth, outputHeight, getOffscreenCanvas]);
-
-  const exportAsAnsi = useCallback(() => {
-    if (!canvasRef.current || !compositionCanvasRef.current) return;
-
-    const outputAspectRatio = outputWidth && outputHeight
-      ? outputHeight / outputWidth
-      : undefined;
-    let imageData = resizeAndGetImageData(
-      compositionCanvasRef.current,
-      config.resolution,
-      config.fontAspectRatio,
-      getOffscreenCanvas(),
-      outputAspectRatio,
-      config.sharpness || 0
-    );
-    if (!imageData) return;
-
-    const asciiResult = convertToAscii(imageData, imageData.width, imageData.height, config);
-    const lines = asciiResult.text.split('\n').filter(l => l.length > 0);
-    const colors = asciiResult.colors;
-
-    let ansi = '';
-    const RESET = '\x1b[0m';
-
-    for (let y = 0; y < lines.length; y++) {
-      const line = lines[y];
-      for (let x = 0; x < line.length; x++) {
-        const char = line[x];
-        if (config.useSourceColor && colors && colors[y]?.[x] && colors[y][x] !== 'transparent') {
-          // Parse hex color
-          const hex = colors[y][x];
-          const r = parseInt(hex.slice(1, 3), 16);
-          const g = parseInt(hex.slice(3, 5), 16);
-          const b = parseInt(hex.slice(5, 7), 16);
-          ansi += `\x1b[38;2;${r};${g};${b}m${char}`;
-        } else {
-          ansi += char;
-        }
-      }
-      ansi += RESET + '\n';
-    }
-
-    const blob = new Blob([ansi], { type: 'text/plain' });
-    downloadBlob(blob, `ascii-art-${Date.now()}.ans`);
-  }, [config, outputWidth, outputHeight, getOffscreenCanvas]);
+  useEffect(() => {
+    if (!copyStatus) return;
+    const timeoutId = window.setTimeout(() => setCopyStatus(null), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [copyStatus]);
 
   // --- FRAME NAVIGATION ---
   const goToFrame = useCallback((index: number) => {
@@ -783,82 +995,78 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
     for (let i = 0; i <= targetIndex; i++) {
       const frame = frames[i];
-      const { width, height, top, left } = frame.dims;
+      const restoreState = drawGifFrameToComposition(
+        ctx,
+        patchCtxRef.current,
+        patchCanvasRef.current,
+        frame
+      );
 
-      if (frame.patch && patchCtxRef.current && patchCanvasRef.current) {
-        const patchData = new ImageData(frame.patch, width, height);
-        patchCanvasRef.current.width = width;
-        patchCanvasRef.current.height = height;
-        patchCtxRef.current.putImageData(patchData, 0, 0);
-        ctx.drawImage(patchCanvasRef.current, left, top);
-      }
-
-      if (frame.disposalType === 2 && i < targetIndex) {
-        ctx.clearRect(left, top, width, height);
+      if (i < targetIndex) {
+        disposeGifFrameFromComposition(ctx, frame, restoreState);
       }
     }
 
     frameIndexRef.current = targetIndex;
+    displayedFrameIndexRef.current = targetIndex;
     setCurrentFrameIndex(targetIndex);
     renderCurrentFrameToCanvas(undefined, true);
   }, [frames, renderCurrentFrameToCanvas]);
 
   const stepFrame = useCallback((delta: number) => {
-    const newIndex = (frameIndexRef.current + delta + frames.length) % frames.length;
+    const newIndex = (displayedFrameIndexRef.current + delta + frames.length) % frames.length;
     goToFrame(newIndex);
   }, [frames.length, goToFrame]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (!hasAnimatedFrames || isInteractiveKeyboardTarget(e.target)) return;
+
+      if (/^[1-8]$/.test(e.key)) {
+        e.preventDefault();
+        setDisplayPlaybackSpeed(PLAYBACK_SPEED_PRESETS[Number(e.key) - 1]);
+        return;
+      }
 
       switch (e.key) {
         case ' ':
           e.preventDefault();
-          if (!isStaticImage) setIsPlaying(p => !p);
+          setIsPlaying(p => !p);
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          if (!isStaticImage && frames.length > 0) {
-            setIsPlaying(false);
-            stepFrame(-1);
-          }
+          setIsPlaying(false);
+          stepFrame(-1);
           break;
         case 'ArrowRight':
           e.preventDefault();
-          if (!isStaticImage && frames.length > 0) {
-            setIsPlaying(false);
-            stepFrame(1);
-          }
+          setIsPlaying(false);
+          stepFrame(1);
           break;
         case 'Home':
           e.preventDefault();
-          if (!isStaticImage && frames.length > 0) {
-            setIsPlaying(false);
-            goToFrame(0);
-          }
+          setIsPlaying(false);
+          goToFrame(0);
           break;
         case 'End':
           e.preventDefault();
-          if (!isStaticImage && frames.length > 0) {
-            setIsPlaying(false);
-            goToFrame(frames.length - 1);
-          }
+          setIsPlaying(false);
+          goToFrame(frames.length - 1);
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isStaticImage, frames.length, stepFrame, goToFrame]);
+  }, [hasAnimatedFrames, frames.length, stepFrame, goToFrame, setDisplayPlaybackSpeed]);
 
   // --- EXPORT LOGIC (DECOUPLED) ---
   
   const handleExportGif = async () => {
-    if (!canvasRef.current || frames.length === 0 || isExporting) return;
-    
+    if (!canvasRef.current || frames.length <= 1 || isExporting) return;
+
+    const wasPlaying = isPlaying;
     setIsExporting(true);
     setIsPlaying(false); // Pause playback
     setExportProgress(0);
@@ -870,10 +1078,11 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         const gif = new GIFEncoder();
         const exportCanvas = document.createElement('canvas');
         
-        // Reset composition for export
         const compCanvas = compositionCanvasRef.current!;
-        const compCtx = compositionCtxRef.current!;
-        compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+        const exportCompositionCanvas = document.createElement('canvas');
+        exportCompositionCanvas.width = compCanvas.width;
+        exportCompositionCanvas.height = compCanvas.height;
+        const exportCompositionCtx = exportCompositionCanvas.getContext('2d')!;
         const aspect = compCanvas.height / compCanvas.width;
         const baseWidth = Math.max(
             1,
@@ -888,22 +1097,31 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         exportCanvas.width = exportWidth;
         exportCanvas.height = exportHeight;
 
+        const effectStartTime = Date.now();
+        let elapsedTime = 0;
+
         // Iterate all frames
         for (let i = 0; i < frames.length; i++) {
             const frame = frames[i];
-            const { width, height, top, left } = frame.dims;
+            // gifuct-js and gifenc both use milliseconds. Treat 0 delay like the GIF spec default.
+            const exportDelay = Math.max(20, frame.delay || 100);
 
             // 1. Update Composition
-            if (frame.patch && patchCtxRef.current && patchCanvasRef.current) {
-                const patchData = new ImageData(frame.patch, width, height);
-                patchCanvasRef.current.width = width;
-                patchCanvasRef.current.height = height;
-                patchCtxRef.current.putImageData(patchData, 0, 0);
-                compCtx.drawImage(patchCanvasRef.current, left, top);
-            }
+            const restoreState = drawGifFrameToComposition(
+                exportCompositionCtx,
+                patchCtxRef.current,
+                patchCanvasRef.current,
+                frame
+            );
 
             // 2. Render ASCII to Canvas
-            const renderResult = renderCurrentFrameToCanvas(exportCanvas, false);
+            const renderResult = renderCurrentFrameToCanvas(
+                exportCanvas,
+                true,
+                effectStartTime + elapsedTime,
+                exportCompositionCanvas,
+                false
+            );
             
             if (renderResult) {
                 const { finalCtx, finalCanvas } = renderResult;
@@ -927,20 +1145,6 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
                 const transparentIndex = isTransparentBg
                     ? palette.findIndex((color) => color[3] === 0)
                     : -1;
-                
-                // Delay Calculation Fix:
-                // 1. gifuct-js provides delay in 'milliseconds' (e.g., 30, 40, 100).
-                // 2. gifenc expects delay in 'milliseconds' (e.g., 30, 40, 100).
-                // 3. Browsers clamp delays < 20ms (0.02s) to 100ms (0.1s).
-                //
-                // Fix: Pass ms directly. Clamp min to 20ms so high-FPS gifs don't become slow-motion in browsers.
-                
-                let delay = frame.delay;
-                // Spec says 0 delay -> 100ms
-                if (!delay) delay = 100;
-                
-                // Safe floor: 20ms (50fps) to avoid browser throttling to 100ms
-                const exportDelay = Math.max(20, delay);
 
                 gif.writeFrame(index, finalCanvas.width, finalCanvas.height, { 
                     palette, 
@@ -950,10 +1154,10 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
                 });
             }
 
+            elapsedTime += exportDelay;
+
             // 3. Disposal for next frame
-            if (frame.disposalType === 2) {
-                compCtx.clearRect(left, top, width, height);
-            }
+            disposeGifFrameFromComposition(exportCompositionCtx, frame, restoreState);
 
             // Update Progress
             setExportProgress(Math.round(((i + 1) / frames.length) * 100));
@@ -979,20 +1183,15 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         alert("Failed to export GIF");
     } finally {
         setIsExporting(false);
-        setIsPlaying(true); // Resume playback
-        // Reset Composition state to match frameIndexRef (which might be desynced)
-        // Simplest: Restart loop
-        frameIndexRef.current = 0;
-        if (compositionCtxRef.current && compositionCanvasRef.current) {
-            compositionCtxRef.current.clearRect(0, 0, compositionCanvasRef.current.width, compositionCanvasRef.current.height);
-        }
+        setIsPlaying(wasPlaying);
     }
   };
 
 
   const handleExportVideo = useCallback(async () => {
-    if (!canvasRef.current || frames.length === 0 || isExporting) return;
+    if (!canvasRef.current || frames.length <= 1 || isExporting) return;
 
+    const wasPlaying = isPlaying;
     setIsExporting(true);
     setIsPlaying(false);
     setExportProgress(0);
@@ -1002,10 +1201,10 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
 
     try {
         const compCanvas = compositionCanvasRef.current!;
-        const compCtx = compositionCtxRef.current!;
-
-        // Reset composition for clean export
-        compCtx.clearRect(0, 0, compCanvas.width, compCanvas.height);
+        const exportCompositionCanvas = document.createElement('canvas');
+        exportCompositionCanvas.width = compCanvas.width;
+        exportCompositionCanvas.height = compCanvas.height;
+        const exportCompositionCtx = exportCompositionCanvas.getContext('2d')!;
 
         const aspect = compCanvas.height / compCanvas.width;
         const baseWidth = Math.max(
@@ -1024,27 +1223,37 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         exportCanvas.width = exportWidth;
         exportCanvas.height = exportHeight;
 
+        const frameStartTimes: number[] = [];
+        let elapsedTime = 0;
+        for (const frame of frames) {
+            frameStartTimes.push(elapsedTime);
+            elapsedTime += Math.max(20, frame.delay || 100);
+        }
+
+        const effectStartTime = Date.now();
+
         // Frame renderer function - updates composition and renders ASCII
         const renderFrame = (frameIndex: number, targetCanvas: HTMLCanvasElement) => {
             const frame = frames[frameIndex];
-            const { width, height, top, left } = frame.dims;
-
             // Update composition canvas
-            if (frame.patch && patchCtxRef.current && patchCanvasRef.current) {
-                const patchData = new ImageData(frame.patch, width, height);
-                patchCanvasRef.current.width = width;
-                patchCanvasRef.current.height = height;
-                patchCtxRef.current.putImageData(patchData, 0, 0);
-                compCtx.drawImage(patchCanvasRef.current, left, top);
-            }
+            const restoreState = drawGifFrameToComposition(
+                exportCompositionCtx,
+                patchCtxRef.current,
+                patchCanvasRef.current,
+                frame
+            );
 
             // Render ASCII to target canvas
-            renderCurrentFrameToCanvas(targetCanvas, false);
+            renderCurrentFrameToCanvas(
+                targetCanvas,
+                true,
+                effectStartTime + (frameStartTimes[frameIndex] ?? 0),
+                exportCompositionCanvas,
+                false
+            );
 
             // Handle disposal for next frame
-            if (frame.disposalType === 2) {
-                compCtx.clearRect(left, top, width, height);
-            }
+            disposeGifFrameFromComposition(exportCompositionCtx, frame, restoreState);
         };
 
         const result = await exportVideo({
@@ -1069,14 +1278,18 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
         alert("Video export failed. Please try again.");
     } finally {
         setIsExporting(false);
-        setIsPlaying(true);
-        // Reset composition state
-        frameIndexRef.current = 0;
-        if (compositionCtxRef.current && compositionCanvasRef.current) {
-            compositionCtxRef.current.clearRect(0, 0, compositionCanvasRef.current.width, compositionCanvasRef.current.height);
-        }
+        setIsPlaying(wasPlaying);
     }
-  }, [frames, isExporting, exportScale, renderCurrentFrameToCanvas]);
+  }, [frames, isExporting, isPlaying, outputWidth, outputHeight, exportScale, renderCurrentFrameToCanvas]);
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+      return;
+    }
+
+    void frameRef.current?.requestFullscreen?.();
+  }, []);
 
   if (error) {
     return (
@@ -1089,17 +1302,28 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
   // Generate segmented progress bar segments
   const PROGRESS_SEGMENTS = 20;
   const filledSegments = Math.round((exportProgress / 100) * PROGRESS_SEGMENTS);
+  const frameCount = hasAnimatedFrames ? frames.length : 1;
+  const displayFrameNumber = hasAnimatedFrames ? currentFrameIndex + 1 : 1;
+  const displayFrameText = `${displayFrameNumber} / ${frameCount}`;
+  const displaySpeed = displayPlaybackSpeed;
+  const displayScrubberFrameCount = frameCount;
+  const displayScrubberFrameIndex = hasAnimatedFrames ? currentFrameIndex : 0;
+  const transportIsAvailable = hasAnimatedFrames;
 
   return (
     <div
-      ref={frameRef}
-      className="player"
-      style={{
-        backgroundColor: config.backgroundColor,
-        width: `${displaySize.width}px`,
-        height: `${displaySize.height}px`
-      }}
+      ref={shellRef}
+      className="player-shell"
+      style={{ maxWidth: `${displaySize.width}px` }}
     >
+      <div
+        ref={frameRef}
+        className="player"
+        style={{
+          backgroundColor: config.backgroundColor,
+          aspectRatio: `${displaySize.width} / ${displaySize.height}`
+        }}
+      >
           {isLoading && (
               <div className="player__loading">
                   <span className="player__loading-text">[LOADING...]</span>
@@ -1124,158 +1348,218 @@ const AsciiPlayer: React.FC<AsciiPlayerProps> = ({ imageSrc, config, outputWidth
           )}
 
           <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+      </div>
 
-          {/* Frame info bar - top */}
-          {!isStaticImage && frames.length > 1 && (
-            <div className="player__frame-info">
-              <span className="player__frame-counter">
-                {currentFrameIndex + 1} / {frames.length}
-              </span>
-              <div className="separator" />
-              <select
-                value={playbackSpeed}
-                onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontFamily: "'Space Mono', monospace", fontSize: 'var(--label)', cursor: 'pointer', outline: 'none' }}
-                title="Playback Speed"
-              >
-                <option value={0.25}>0.25x</option>
-                <option value={0.5}>0.5x</option>
-                <option value={1}>1x</option>
-                <option value={1.5}>1.5x</option>
-                <option value={2}>2x</option>
-              </select>
-            </div>
-          )}
+      <div className="player__transport">
+        <div className="player__frame-info">
+          <span className="player__frame-counter">
+            {displayFrameText}
+          </span>
+          <div className="separator" />
+          <select
+            value={displaySpeed}
+            onChange={(e) => {
+              if (hasAnimatedFrames) {
+                setDisplayPlaybackSpeed(Number(e.target.value));
+              }
+            }}
+            className="player__speed"
+            title="Playback Speed"
+            aria-label="Playback Speed"
+            disabled={!transportIsAvailable || isExporting}
+          >
+            {PLAYBACK_SPEED_PRESETS.map((speed) => (
+              <option key={speed} value={speed}>{speed.toFixed(1)}x</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="btn btn--icon player__fullscreen-button"
+            title="Fullscreen"
+            aria-label="Fullscreen"
+            disabled={isExporting}
+          >
+            <Maximize size={16} strokeWidth={1.5} />
+          </button>
+        </div>
 
-          {/* Frame scrubber - just above controls */}
-          {!isStaticImage && frames.length > 1 && (
-            <div className="player__scrubber">
-              <input
-                type="range"
-                min={0}
-                max={frames.length - 1}
-                value={currentFrameIndex}
-                onChange={(e) => {
-                  setIsPlaying(false);
-                  goToFrame(Number(e.target.value));
-                }}
-              />
-            </div>
-          )}
+        <div className="player__scrubber">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, displayScrubberFrameCount - 1)}
+            value={displayScrubberFrameIndex}
+            onChange={(e) => {
+              if (!hasAnimatedFrames) return;
+              setIsPlaying(false);
+              goToFrame(Number(e.target.value));
+            }}
+            aria-label="Frame"
+            disabled={!transportIsAvailable || isExporting}
+          />
+        </div>
 
-          {/* Controls */}
           <div className="player__controls">
-               {/* Animation controls - only for animated GIFs */}
-               {!isStaticImage && (
-                 <>
-                   <button
-                      onClick={() => { setIsPlaying(false); stepFrame(-1); }}
-                      disabled={isExporting}
-                      className="btn btn--icon"
-                      title="Previous Frame (←)"
-                   >
-                      <ChevronLeft size={16} strokeWidth={1.5} />
-                   </button>
+               <span className="sr-only" role="status" aria-live="polite">
+                 {copyStatus?.state === 'copied' && copyStatus.target === 'image' ? 'Copied image to clipboard' : ''}
+                 {copyStatus?.state === 'copied' && copyStatus.target === 'text' ? 'Copied ASCII text to clipboard' : ''}
+                 {copyStatus?.state === 'failed' && copyStatus.target === 'image' ? 'Image copy unavailable' : ''}
+                 {copyStatus?.state === 'failed' && copyStatus.target === 'text' ? 'Text copy unavailable' : ''}
+               </span>
+                 <button
+                    onClick={() => {
+                      if (hasAnimatedFrames) {
+                        setIsPlaying(true);
+                      }
+                    }}
+                    disabled={!transportIsAvailable || isExporting}
+                    className="btn btn--icon player__control-button player__control-button--primary"
+                    title="Play (Space)"
+                    aria-label="Play"
+                 >
+                  <Play size={16} fill="currentColor" strokeWidth={1.5} />
+               </button>
 
-                   <button
-                      onClick={togglePlay}
-                      disabled={isExporting}
-                      className="btn btn--icon"
-                      title={isPlaying ? "Pause (Space)" : "Play (Space)"}
-                   >
-                      {isPlaying ? <Pause size={16} fill="currentColor" strokeWidth={1.5} /> : <Play size={16} fill="currentColor" strokeWidth={1.5} />}
-                   </button>
+                 <button
+                    onClick={() => {
+                      if (hasAnimatedFrames) {
+                        setIsPlaying(false);
+                      }
+                    }}
+                    disabled={!transportIsAvailable || isExporting}
+                    className="btn btn--icon player__control-button player__control-button--primary"
+                    title="Pause (Space)"
+                    aria-label="Pause"
+                 >
+                  <Pause size={16} fill="currentColor" strokeWidth={1.5} />
+               </button>
 
-                   <button
-                      onClick={() => { setIsPlaying(false); stepFrame(1); }}
-                      disabled={isExporting}
-                      className="btn btn--icon"
-                      title="Next Frame (→)"
-                   >
-                      <ChevronRight size={16} strokeWidth={1.5} />
-                   </button>
+                 <button
+                    onClick={() => {
+                      if (hasAnimatedFrames) {
+                        setIsPlaying(false);
+                        stepFrame(-1);
+                      }
+                    }}
+                    disabled={!transportIsAvailable || isExporting}
+                    className="btn btn--icon player__control-button player__control-button--primary"
+                    title="Previous Frame (←)"
+                    aria-label="Previous Frame"
+                 >
+                  <span className="player__control-icon player__control-icon--desktop">
+                    <ChevronLeft size={16} strokeWidth={1.5} />
+                  </span>
+                  <span className="player__control-icon player__control-icon--mobile">
+                    <SkipBack size={16} strokeWidth={1.5} />
+                  </span>
+               </button>
 
-                   <div className="separator" />
+                 <button
+                    onClick={() => {
+                      if (hasAnimatedFrames) {
+                        setIsPlaying(false);
+                        stepFrame(1);
+                      }
+                    }}
+                    disabled={!transportIsAvailable || isExporting}
+                    className="btn btn--icon player__control-button player__control-button--primary"
+                    title="Next Frame (→)"
+                    aria-label="Next Frame"
+                 >
+                  <span className="player__control-icon player__control-icon--desktop">
+                    <ChevronRight size={16} strokeWidth={1.5} />
+                  </span>
+                  <span className="player__control-icon player__control-icon--mobile">
+                    <SkipForward size={16} strokeWidth={1.5} />
+                  </span>
+               </button>
 
-                   <button
-                      onClick={restart}
-                      disabled={isExporting}
-                      className="btn btn--icon"
-                      title="Restart"
-                   >
-                      <RotateCcw size={16} strokeWidth={1.5} />
-                   </button>
+               <div className="separator separator--primary" />
 
-                   <div className="separator" />
-                 </>
-               )}
+                 <button
+                    onClick={() => {
+                      if (hasAnimatedFrames) {
+                        restart();
+                      }
+                    }}
+                    disabled={!transportIsAvailable || isExporting}
+                    className="btn btn--icon player__control-button player__control-button--primary"
+                    title="Restart"
+                    aria-label="Restart"
+                 >
+                  <RotateCcw size={16} strokeWidth={1.5} />
+               </button>
 
-               <button
-                  onClick={copyImageToClipboard}
-                  className="btn btn--icon"
-                  title="Copy Image"
-               >
+               <div className="separator separator--secondary" />
+
+                 <button
+                    onClick={copyImageToClipboard}
+                    className={`btn btn--icon player__control-button player__control-button--secondary ${copyStatus?.target === 'image' ? `btn--copy-${copyStatus.state}` : ''}`}
+                    title={copyStatus?.target === 'image'
+                      ? copyStatus.state === 'copied' ? 'Image Copied' : 'Image Copy Unavailable'
+                      : 'Copy Image'}
+                    aria-label={copyStatus?.target === 'image'
+                      ? copyStatus.state === 'copied' ? 'Copy Image (copied)' : 'Copy Image (unavailable)'
+                      : 'Copy Image'}
+                 >
                   <Copy size={16} strokeWidth={1.5} />
                </button>
 
-               <button
-                  onClick={copyTextToClipboard}
-                  className="btn btn--icon"
-                  title="Copy ASCII Text"
-               >
+                 <button
+                    onClick={copyTextToClipboard}
+                    className={`btn btn--icon player__control-button player__control-button--secondary ${copyStatus?.target === 'text' ? `btn--copy-${copyStatus.state}` : ''}`}
+                    title={copyStatus?.target === 'text'
+                      ? copyStatus.state === 'copied' ? 'ASCII Text Copied' : 'Text Copy Unavailable'
+                      : 'Copy ASCII Text'}
+                    aria-label={copyStatus?.target === 'text'
+                      ? copyStatus.state === 'copied' ? 'Copy ASCII Text (copied)' : 'Copy ASCII Text (unavailable)'
+                      : 'Copy ASCII Text'}
+                 >
                   <FileText size={16} strokeWidth={1.5} />
                </button>
 
-               <div className="separator" />
+               <div className="separator separator--secondary" />
 
-               {!isStaticImage && (
+               {hasAnimatedFrames && (
                  <>
-                   <button
-                      onClick={handleExportVideo}
-                      disabled={isExporting}
-                      className="btn btn--icon"
-                      title="Export Video"
-                   >
+                     <button
+                        onClick={handleExportVideo}
+                        disabled={isExporting}
+                        className="btn btn--icon player__control-button player__control-button--secondary"
+                        title="Export Video"
+                        aria-label="Export Video"
+                     >
                       <Video size={16} strokeWidth={1.5} />
                    </button>
 
-                   <button
-                      onClick={handleExportGif}
-                      disabled={isExporting}
-                      className="btn btn--icon"
-                      title="Export GIF"
-                   >
+                     <button
+                        onClick={handleExportGif}
+                        disabled={isExporting}
+                        className="btn btn--icon player__control-button player__control-button--secondary"
+                        title="Export GIF"
+                        aria-label="Export GIF"
+                     >
                       <Download size={16} strokeWidth={1.5} />
                    </button>
                  </>
                )}
 
-               <button
-                  onClick={handleExportPng}
-                  className="btn btn--icon"
-                  title="Export PNG"
-               >
+                 <button
+                    onClick={handleExportPng}
+                    className="btn btn--icon player__control-button player__control-button--secondary"
+                    title="Export PNG"
+                    aria-label="Export PNG"
+                 >
                   <FileImage size={16} strokeWidth={1.5} />
                </button>
 
-               <button
-                  onClick={exportAsHtml}
-                  className="btn btn--icon"
-                  title="Export HTML"
-               >
-                  <Code size={16} strokeWidth={1.5} />
-               </button>
-
-               <button
-                  onClick={exportAsAnsi}
-                  className="btn btn--icon"
-                  title="Export ANSI (.ans)"
-               >
-                  <Terminal size={16} strokeWidth={1.5} />
-               </button>
           </div>
+      </div>
     </div>
   );
-};
+});
+
+AsciiPlayer.displayName = 'AsciiPlayer';
 
 export default AsciiPlayer;

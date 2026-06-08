@@ -93,18 +93,6 @@ export const COLOR_PALETTES: Record<string, { name: string; colors: [number, num
       [255, 255, 255]    // White
     ]
   },
-  synthwave: {
-    name: 'Synthwave',
-    colors: [
-      [10, 10, 30],      // Dark blue-black
-      [255, 0, 128],     // Hot pink
-      [128, 0, 255],     // Purple
-      [0, 255, 255],     // Cyan
-      [255, 128, 0],     // Orange
-      [255, 0, 255],     // Magenta
-      [0, 128, 255]      // Electric blue
-    ]
-  },
   amber: {
     name: 'Amber Monitor',
     colors: [
@@ -277,7 +265,35 @@ const inverseGamma = (value: number): number => {
 export interface AsciiResult {
   text: string;
   colors: string[][] | null; // 2D array of hex colors per character, null if not using source colors
+  underpaintAlphas: number[][] | null; // Per-cell source color tint for sparse glyphs
 }
+
+const MIN_UNDERPAINT_ALPHA = 0.035;
+const MAX_UNDERPAINT_ALPHA = 0.42;
+
+const getColorChroma = (r: number, g: number, b: number): number => {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return (max - min) / 255;
+};
+
+const getSourceColorUnderpaintAlpha = (
+  gray: number,
+  char: string,
+  r: number,
+  g: number,
+  b: number
+): number => {
+  const inkDensity = getCharDensity(char);
+  const negativeSpace = Math.max(0, 1 - inkDensity);
+  const sourceLightness = Math.max(0, Math.min(1, gray / 255));
+  const chroma = getColorChroma(r, g, b);
+  const colorEnergy = Math.max(sourceLightness, chroma * 0.55);
+  const alpha = Math.pow(negativeSpace, 1.25) * (0.08 + 0.34 * colorEnergy);
+
+  if (alpha < MIN_UNDERPAINT_ALPHA) return 0;
+  return Math.min(MAX_UNDERPAINT_ALPHA, alpha);
+};
 
 /**
  * Maps a grayscale value (0-255) to a character using density-calibrated mapping.
@@ -505,9 +521,11 @@ export const convertToAscii = (
   // Second pass: generate ASCII output
   let asciiStr = "";
   const colors: string[][] | null = config.useSourceColor ? [] : null;
+  const underpaintAlphas: number[][] | null = config.useSourceColor ? [] : null;
 
   for (let y = 0; y < height; y++) {
     const rowColors: string[] = [];
+    const rowUnderpaintAlphas: number[] = [];
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
       const gray = grayValues[idx];
@@ -515,9 +533,11 @@ export const convertToAscii = (
       if (gray < 0) {
         asciiStr += " "; // Transparent maps to space
         if (colors) rowColors.push('transparent');
+        if (underpaintAlphas) rowUnderpaintAlphas.push(0);
       } else {
         // Use density-calibrated mapping
-        asciiStr += getCharByDensity(gray, densityArray, config.invert);
+        const char = getCharByDensity(gray, densityArray, config.invert);
+        asciiStr += char;
         if (colors) {
           let [adjR, adjG, adjB] = adjustedColors[idx];
           // Apply color palette if specified
@@ -525,14 +545,18 @@ export const convertToAscii = (
             [adjR, adjG, adjB] = applyPaletteToColor(adjR, adjG, adjB, config.colorPalette);
           }
           rowColors.push(rgbToHex(Math.round(adjR), Math.round(adjG), Math.round(adjB)));
+          if (underpaintAlphas) {
+            rowUnderpaintAlphas.push(getSourceColorUnderpaintAlpha(gray, char, adjR, adjG, adjB));
+          }
         }
       }
     }
     if (colors) colors.push(rowColors);
+    if (underpaintAlphas) underpaintAlphas.push(rowUnderpaintAlphas);
     asciiStr += "\n";
   }
 
-  return { text: asciiStr, colors };
+  return { text: asciiStr, colors, underpaintAlphas };
 };
 
 /**
@@ -599,8 +623,7 @@ export const resizeAndGetImageData = (
 ): ImageData | null => {
   // Reuse existing canvas if provided to avoid garbage collection stutter
   const canvas = existingCanvas || document.createElement('canvas');
-  // Remove willReadFrequently to ensure we get the latest frame from video/gif sources
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return null;
 
   // Determine intrinsic dimensions

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { program } from 'commander';
-import { createCanvas, loadImage } from '@napi-rs/canvas';
+import { createCanvas, loadImage, type Canvas, type ImageData, type SKRSContext2D } from '@napi-rs/canvas';
 import { parseGIF, decompressFrames } from 'gifuct-js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -13,6 +13,12 @@ interface GifFrame {
   delay: number;
   disposalType: number;
   patch: Uint8ClampedArray;
+}
+
+interface GifRestoreState {
+  imageData: ImageData;
+  left: number;
+  top: number;
 }
 
 interface Options {
@@ -36,6 +42,43 @@ interface Options {
 
 const DEFAULT_CHARS = '@%#*+=-:. ';
 
+function drawGifFrameToComposition(
+  compCtx: SKRSContext2D,
+  patchCtx: SKRSContext2D,
+  patchCanvas: Canvas,
+  frame: GifFrame
+): GifRestoreState | null {
+  const { width, height, top, left } = frame.dims;
+  const restoreState = frame.disposalType === 3
+    ? { imageData: compCtx.getImageData(left, top, width, height), left, top }
+    : null;
+
+  if (frame.patch) {
+    patchCanvas.width = width;
+    patchCanvas.height = height;
+    const patchData = patchCtx.createImageData(width, height);
+    patchData.data.set(frame.patch);
+    patchCtx.putImageData(patchData, 0, 0);
+    compCtx.drawImage(patchCanvas, left, top);
+  }
+
+  return restoreState;
+}
+
+function disposeGifFrameFromComposition(
+  compCtx: SKRSContext2D,
+  frame: GifFrame,
+  restoreState: GifRestoreState | null
+): void {
+  const { width, height, top, left } = frame.dims;
+
+  if (frame.disposalType === 2) {
+    compCtx.clearRect(left, top, width, height);
+  } else if (frame.disposalType === 3 && restoreState) {
+    compCtx.putImageData(restoreState.imageData, restoreState.left, restoreState.top);
+  }
+}
+
 // ANSI escape codes
 const ESC = '\x1b';
 const RESET = `${ESC}[0m`;
@@ -45,6 +88,22 @@ const HIDE_CURSOR = `${ESC}[?25l`;
 const SHOW_CURSOR = `${ESC}[?25h`;
 const ALT_SCREEN_ON = `${ESC}[?1049h`;
 const ALT_SCREEN_OFF = `${ESC}[?1049l`;
+
+async function waitForKeypress(): Promise<void> {
+  if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
+    return;
+  }
+
+  process.stdout.write(`\n${RESET}Press any key to exit...`);
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+
+  try {
+    await new Promise((resolve) => process.stdin.once('data', resolve));
+  } finally {
+    process.stdin.setRawMode(false);
+  }
+}
 
 // Sixel escape sequences
 const SIXEL_START = `${ESC}Pq`;
@@ -209,7 +268,7 @@ function getFileType(input: string): 'gif' | 'image' {
 }
 
 // Load static image (PNG, JPEG, WebP) and convert to frames format
-async function loadStaticImage(input: string): Promise<{ canvas: ReturnType<typeof createCanvas>; width: number; height: number }> {
+async function loadStaticImage(input: string): Promise<{ canvas: Canvas; width: number; height: number }> {
   const image = await loadImage(input);
   const canvas = createCanvas(image.width, image.height);
   const ctx = canvas.getContext('2d');
@@ -223,13 +282,27 @@ async function loadFile(input: string): Promise<ArrayBuffer> {
     return new Promise((resolve, reject) => {
       const client = input.startsWith('https://') ? https : http;
       client.get(input, (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) {
-          loadFile(res.headers.location!).then(resolve).catch(reject);
+        const statusCode = res.statusCode ?? 0;
+
+        if (statusCode >= 300 && statusCode < 400 && res.headers.location) {
+          const redirectUrl = new URL(res.headers.location, input).toString();
+          res.resume();
+          loadFile(redirectUrl).then(resolve).catch(reject);
           return;
         }
+
+        if (statusCode < 200 || statusCode >= 300) {
+          res.resume();
+          reject(new Error(`Failed to fetch ${input}: HTTP ${statusCode}`));
+          return;
+        }
+
         const chunks: Buffer[] = [];
         res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => resolve(Buffer.concat(chunks).buffer));
+        res.on('end', () => {
+          const buffer = Buffer.concat(chunks);
+          resolve(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+        });
         res.on('error', reject);
       }).on('error', reject);
     });
@@ -284,7 +357,7 @@ function convertToAscii(
 
 // Render a single frame to ASCII
 function renderFrame(
-  compositionCanvas: ReturnType<typeof createCanvas>,
+  compositionCanvas: Canvas,
   options: Options
 ): { lines: string[]; colors: [number, number, number][][] } {
   const { width: srcWidth, height: srcHeight } = compositionCanvas;
@@ -361,7 +434,7 @@ function formatAnsiFrame(
 
 // Render frame for Sixel mode - renders ASCII art to canvas, then encodes to Sixel
 function renderSixelFrame(
-  compositionCanvas: ReturnType<typeof createCanvas>,
+  compositionCanvas: Canvas,
   options: Options
 ): string {
   // First, convert to ASCII (reuse the ASCII rendering logic)
@@ -371,13 +444,19 @@ function renderSixelFrame(
   let fontSize: number;
   if (options.fontSize) {
     fontSize = options.fontSize;
-  } else if (options.width) {
-    // Calculate font size to achieve target width (accounting for char aspect ratio)
-    fontSize = Math.floor(options.width / (lines[0].length * 0.6));
+  } else if (options.width || options.height) {
+    const widthSize = options.width
+      ? options.width / (lines[0].length * 0.6)
+      : Number.POSITIVE_INFINITY;
+    const heightSize = options.height
+      ? options.height / Math.max(1, lines.length)
+      : Number.POSITIVE_INFINITY;
+    fontSize = Math.floor(Math.min(widthSize, heightSize));
   } else {
     fontSize = 12;
   }
-  fontSize = Math.max(4, fontSize); // Minimum readable size
+  const minFontSize = (options.width || options.height || options.fontSize) ? 1 : 4;
+  fontSize = Math.max(minFontSize, fontSize);
 
   const charWidth = fontSize * 0.6; // Approximate monospace character width
   const charHeight = fontSize;
@@ -464,29 +543,15 @@ async function playSixelAnimation(frames: GifFrame[], options: Options): Promise
       if (options.frame !== undefined && i !== options.frame) continue;
 
       const frame = frames[i];
-      const { width, height, top, left } = frame.dims;
-
-      if (frame.patch) {
-        patchCanvas.width = width;
-        patchCanvas.height = height;
-        const patchData = patchCtx.createImageData(width, height);
-        patchData.data.set(frame.patch);
-        patchCtx.putImageData(patchData, 0, 0);
-        compCtx.drawImage(patchCanvas, left, top);
-      }
+      const restoreState = drawGifFrameToComposition(compCtx, patchCtx, patchCanvas, frame);
 
       const sixelFrame = renderSixelFrame(compositionCanvas, options);
       process.stdout.write(HOME + sixelFrame);
 
-      if (frame.disposalType === 2) {
-        compCtx.clearRect(left, top, width, height);
-      }
+      disposeGifFrameFromComposition(compCtx, frame, restoreState);
 
       if (options.frame !== undefined) {
-        process.stdout.write(`\n${RESET}Press any key to exit...`);
-        process.stdin.setRawMode(true);
-        process.stdin.resume();
-        await new Promise((resolve) => process.stdin.once('data', resolve));
+        await waitForKeypress();
         process.stdout.write(SHOW_CURSOR + ALT_SCREEN_OFF);
         return;
       }
@@ -503,16 +568,13 @@ async function playSixelAnimation(frames: GifFrame[], options: Options): Promise
     }
   } else {
     await playOnce();
-    process.stdout.write(`\n${RESET}Press any key to exit...`);
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    await new Promise((resolve) => process.stdin.once('data', resolve));
+    await waitForKeypress();
     process.stdout.write(SHOW_CURSOR + ALT_SCREEN_OFF);
   }
 }
 
 // Display static image in terminal (ASCII mode)
-async function displayStaticImage(canvas: ReturnType<typeof createCanvas>, options: Options): Promise<void> {
+async function displayStaticImage(canvas: Canvas, options: Options): Promise<void> {
   process.stdout.write(ALT_SCREEN_ON + HIDE_CURSOR);
 
   const cleanup = () => {
@@ -527,15 +589,12 @@ async function displayStaticImage(canvas: ReturnType<typeof createCanvas>, optio
   const ansiFrame = formatAnsiFrame(lines, colors, options);
   process.stdout.write(HOME + ansiFrame);
 
-  process.stdout.write(`\n${RESET}Press any key to exit...`);
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-  await new Promise((resolve) => process.stdin.once('data', resolve));
+  await waitForKeypress();
   process.stdout.write(SHOW_CURSOR + ALT_SCREEN_OFF);
 }
 
 // Display static image in terminal (Sixel mode)
-async function displayStaticImageSixel(canvas: ReturnType<typeof createCanvas>, options: Options): Promise<void> {
+async function displayStaticImageSixel(canvas: Canvas, options: Options): Promise<void> {
   process.stdout.write(ALT_SCREEN_ON + HIDE_CURSOR);
 
   const cleanup = () => {
@@ -549,10 +608,7 @@ async function displayStaticImageSixel(canvas: ReturnType<typeof createCanvas>, 
   const sixelFrame = renderSixelFrame(canvas, options);
   process.stdout.write(HOME + sixelFrame);
 
-  process.stdout.write(`\n${RESET}Press any key to exit...`);
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-  await new Promise((resolve) => process.stdin.once('data', resolve));
+  await waitForKeypress();
   process.stdout.write(SHOW_CURSOR + ALT_SCREEN_OFF);
 }
 
@@ -596,17 +652,8 @@ async function playAnimation(frames: GifFrame[], options: Options): Promise<void
       if (options.frame !== undefined && i !== options.frame) continue;
 
       const frame = frames[i];
-      const { width, height, top, left } = frame.dims;
-
       // Draw patch to composition
-      if (frame.patch) {
-        patchCanvas.width = width;
-        patchCanvas.height = height;
-        const patchData = patchCtx.createImageData(width, height);
-        patchData.data.set(frame.patch);
-        patchCtx.putImageData(patchData, 0, 0);
-        compCtx.drawImage(patchCanvas, left, top);
-      }
+      const restoreState = drawGifFrameToComposition(compCtx, patchCtx, patchCanvas, frame);
 
       // Render ASCII
       const { lines, colors } = renderFrame(compositionCanvas, options);
@@ -617,16 +664,11 @@ async function playAnimation(frames: GifFrame[], options: Options): Promise<void
       lastLineCount = lines.length;
 
       // Handle disposal
-      if (frame.disposalType === 2) {
-        compCtx.clearRect(left, top, width, height);
-      }
+      disposeGifFrameFromComposition(compCtx, frame, restoreState);
 
       // Single frame mode - wait for keypress then exit
       if (options.frame !== undefined) {
-        process.stdout.write(`\n${RESET}Press any key to exit...`);
-        process.stdin.setRawMode(true);
-        process.stdin.resume();
-        await new Promise((resolve) => process.stdin.once('data', resolve));
+        await waitForKeypress();
         process.stdout.write(SHOW_CURSOR + ALT_SCREEN_OFF);
         return;
       }
@@ -646,10 +688,7 @@ async function playAnimation(frames: GifFrame[], options: Options): Promise<void
   } else {
     await playOnce();
     // Wait for keypress before exiting
-    process.stdout.write(`\n${RESET}Press any key to exit...`);
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    await new Promise((resolve) => process.stdin.once('data', resolve));
+    await waitForKeypress();
     process.stdout.write(SHOW_CURSOR + ALT_SCREEN_OFF);
   }
 }
@@ -682,16 +721,7 @@ tput civis
   }
 
   for (const frame of frames) {
-    const { width, height, top, left } = frame.dims;
-
-    if (frame.patch) {
-      patchCanvas.width = width;
-      patchCanvas.height = height;
-      const patchData = patchCtx.createImageData(width, height);
-      patchData.data.set(frame.patch);
-      patchCtx.putImageData(patchData, 0, 0);
-      compCtx.drawImage(patchCanvas, left, top);
-    }
+    const restoreState = drawGifFrameToComposition(compCtx, patchCtx, patchCanvas, frame);
 
     const { lines, colors } = renderFrame(compositionCanvas, options);
     const ansiFrame = formatAnsiFrame(lines, colors, options);
@@ -705,9 +735,7 @@ tput civis
     const delay = ((frame.delay || 100) / options.speed / 1000).toFixed(3);
     script += `clear\necho -e '${escaped}'\nsleep ${delay}\n`;
 
-    if (frame.disposalType === 2) {
-      compCtx.clearRect(left, top, width, height);
-    }
+    disposeGifFrameFromComposition(compCtx, frame, restoreState);
   }
 
   if (options.loop) {
@@ -745,16 +773,7 @@ try {
   }
 
   for (const frame of frames) {
-    const { width, height, top, left } = frame.dims;
-
-    if (frame.patch) {
-      patchCanvas.width = width;
-      patchCanvas.height = height;
-      const patchData = patchCtx.createImageData(width, height);
-      patchData.data.set(frame.patch);
-      patchCtx.putImageData(patchData, 0, 0);
-      compCtx.drawImage(patchCanvas, left, top);
-    }
+    const restoreState = drawGifFrameToComposition(compCtx, patchCtx, patchCanvas, frame);
 
     const { lines, colors } = renderFrame(compositionCanvas, options);
     const ansiFrame = formatAnsiFrame(lines, colors, options);
@@ -769,9 +788,7 @@ try {
     const delay = Math.round((frame.delay || 100) / options.speed);
     script += `Clear-Host\nWrite-Host "${escaped}"\nStart-Sleep -Milliseconds ${delay}\n`;
 
-    if (frame.disposalType === 2) {
-      compCtx.clearRect(left, top, width, height);
-    }
+    disposeGifFrameFromComposition(compCtx, frame, restoreState);
   }
 
   if (options.loop) {
@@ -805,19 +822,10 @@ function exportAnsiFile(frames: GifFrame[], options: Options, frameIndex: number
   // Build up to the target frame
   for (let i = 0; i <= frameIndex && i < frames.length; i++) {
     const frame = frames[i];
-    const { width, height, top, left } = frame.dims;
+    const restoreState = drawGifFrameToComposition(compCtx, patchCtx, patchCanvas, frame);
 
-    if (frame.patch) {
-      patchCanvas.width = width;
-      patchCanvas.height = height;
-      const patchData = patchCtx.createImageData(width, height);
-      patchData.data.set(frame.patch);
-      patchCtx.putImageData(patchData, 0, 0);
-      compCtx.drawImage(patchCanvas, left, top);
-    }
-
-    if (frame.disposalType === 2 && i < frameIndex) {
-      compCtx.clearRect(left, top, width, height);
+    if (i < frameIndex) {
+      disposeGifFrameFromComposition(compCtx, frame, restoreState);
     }
   }
 
@@ -844,19 +852,10 @@ function exportPlainText(frames: GifFrame[], options: Options, frameIndex: numbe
 
   for (let i = 0; i <= frameIndex && i < frames.length; i++) {
     const frame = frames[i];
-    const { width, height, top, left } = frame.dims;
+    const restoreState = drawGifFrameToComposition(compCtx, patchCtx, patchCanvas, frame);
 
-    if (frame.patch) {
-      patchCanvas.width = width;
-      patchCanvas.height = height;
-      const patchData = patchCtx.createImageData(width, height);
-      patchData.data.set(frame.patch);
-      patchCtx.putImageData(patchData, 0, 0);
-      compCtx.drawImage(patchCanvas, left, top);
-    }
-
-    if (frame.disposalType === 2 && i < frameIndex) {
-      compCtx.clearRect(left, top, width, height);
+    if (i < frameIndex) {
+      disposeGifFrameFromComposition(compCtx, frame, restoreState);
     }
   }
 
