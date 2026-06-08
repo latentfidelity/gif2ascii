@@ -3925,7 +3925,7 @@ body.settings-panels-resizing * {
     top: auto;
     align-self: stretch;
     width: 100%;
-    min-height: 0;
+    min-height: 180px;
     max-height: none;
     overflow: hidden;
     padding: 0;
@@ -3979,38 +3979,18 @@ body.settings-panels-resizing * {
     grid-column: 1 / -1;
   }
 
-  .section-panel--effects .effects-compact-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
-  .section-panel--effects .effect-tile:nth-child(3n) {
-    border-right: 1px solid var(--border);
-  }
-
-  .section-panel--effects .effect-tile:nth-child(6n) {
-    border-right: 0;
-  }
-
-  .section-panel--effects .effect-tile:nth-last-child(-n + 3) {
-    border-bottom: 1px solid var(--border);
-  }
-
-  .section-panel--effects .effect-tile:nth-last-child(-n + 6) {
-    border-bottom: 0;
-  }
-
   .card--canvas {
-    min-height: 300px;
+    min-height: 280px;
   }
 
   .player {
     height: auto;
-    max-height: clamp(280px, 46dvh, 440px);
+    max-height: clamp(210px, 30dvh, 300px);
   }
 
   .card--tenor {
     height: auto;
-    max-height: min(340px, 34dvh) !important;
+    max-height: min(180px, 22dvh) !important;
     padding: 10px;
     border: 1px solid var(--border-visible);
     border-radius: var(--radius-md);

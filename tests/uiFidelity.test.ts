@@ -171,6 +171,10 @@ test('compact Tenor results use dense rail pagination', () => {
 
 test('tablet layout stays preview-first instead of reverting to the legacy side rail', () => {
   const css = read('index.css');
+  const tabletCss = css.slice(
+    css.indexOf('@media (min-width: 769px) and (max-width: 1199px)'),
+    css.indexOf('/* --- 17. HIDDEN FILE INPUT --- */')
+  );
 
   assert.match(
     css,
@@ -199,6 +203,11 @@ test('tablet layout stays preview-first instead of reverting to the legacy side 
   );
   assert.match(
     css,
+    /@media \(min-width: 769px\) and \(max-width: 1199px\) \{[\s\S]*?\.col-controls\s*\{[\s\S]*?min-height:\s*180px;/,
+    'tablet settings should keep a visible editing surface at landscape laptop heights'
+  );
+  assert.match(
+    css,
     /@media \(min-width: 769px\) \{[\s\S]*?\.settings-panel-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*var\(--settings-render-panel\)\)\s+10px\s+minmax\(0,\s*var\(--settings-image-panel\)\);/,
     'tablet and desktop settings should use two real side-by-side panels with a draggable resize edge'
   );
@@ -214,8 +223,18 @@ test('tablet layout stays preview-first instead of reverting to the legacy side 
   );
   assert.match(
     css,
-    /@media \(min-width: 769px\) and \(max-width: 1199px\) \{[\s\S]*?\.player\s*\{[\s\S]*?height:\s*auto;[\s\S]*?max-height:\s*clamp\(280px,\s*46dvh,\s*440px\);/,
+    /@media \(min-width: 769px\) and \(max-width: 1199px\) \{[\s\S]*?\.player\s*\{[\s\S]*?height:\s*auto;[\s\S]*?max-height:\s*clamp\(210px,\s*30dvh,\s*300px\);/,
     'tablet preview should cap scale without stretching the canvas aspect ratio'
+  );
+  assert.match(
+    css,
+    /@media \(min-width: 769px\) and \(max-width: 1199px\) \{[\s\S]*?\.card--tenor\s*\{[\s\S]*?max-height:\s*min\(180px,\s*22dvh\) !important;/,
+    'tablet Tenor rail should stay compact enough to leave room for settings'
+  );
+  assert.doesNotMatch(
+    tabletCss,
+    /\.section-panel--effects \.effects-compact-grid\s*\{[\s\S]*?repeat\(6,\s*minmax\(0,\s*1fr\)\)/,
+    'tablet effects grid should not use the mobile six-up tile layout inside the split settings panel'
   );
 });
 
